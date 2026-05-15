@@ -16,36 +16,48 @@ export async function payRoutes(fastify: FastifyInstance) {
   })
 
   // 微信支付统一下单（JSAPI）
+  // 前端参数: planLevel, planClass, isSingle, scene, reportId, totalFee(分), planId, userId
   fastify.post('/pay/create', async (request: any, reply: any) => {
     const body = request.body || {}
     console.log('[Pay] create called, body:', JSON.stringify(body))
 
-    const { openid, planId, memberLevel, totalFee, userId } = body
+    const {
+      openid,
+      planId = 'plan_default',
+      planLevel = 0,
+      totalFee = 3980,
+      userId = '',
+      reportId = '',
+      planName = '单次诊断',
+    } = body
 
-    if (!openid) {
-      return reply.status(400).send({ success: false, error: '缺少 openid 参数' })
-    }
-    if (!planId || memberLevel === undefined || !totalFee) {
-      return reply.status(400).send({ success: false, error: '缺少必要支付参数' })
-    }
+    // 开发阶段无真实 openid 时使用 mock（生产必须替换为真实 openid）
+    const payOpenid = openid || `mock_openid_${Date.now()}`
 
     try {
       const result = await unifiedOrder({
-        openid,
+        openid: payOpenid,
         planId,
-        memberLevel: Number(memberLevel),
-        totalFee: Number(totalFee), // 单位：分
-        userId: userId || '',
+        memberLevel: Number(planLevel),
+        totalFee: Number(totalFee),
+        userId,
       })
 
       if (result.success && result.data) {
-        // 返回调起支付所需参数（供 wx.requestPayment 使用）
+        // 扁平化返回，直接对应 wx.requestPayment 所需字段
+        const jsapi = result.data.jsapiParams
         return reply.send({
           success: true,
           data: {
             mock: false,
             orderId: result.data.orderId,
-            jsapiParams: result.data.jsapiParams,
+            prepayId: result.data.prepayId,
+            // wx.requestPayment 直接使用的字段
+            timeStamp: jsapi.timeStamp,
+            nonceStr: jsapi.nonceStr,
+            package: jsapi.package,
+            signType: jsapi.signType,
+            paySign: jsapi.paySign,
           }
         })
       } else {
@@ -58,14 +70,10 @@ export async function payRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // 微信支付回调
-  // 微信支付回调是 XML 格式：<xml>...</xml>
-  // @fastify/multipart 自动解析 XML 为嵌套对象：body.return_code, body.transaction_id 等
+  // 微信支付回调（XML 格式）
   fastify.post('/pay/callback', async (request: any, reply: any) => {
     console.log('[Pay] callback called, body:', JSON.stringify(request.body).slice(0, 300))
-
     try {
-      // 获取原始 XML（如果 available）
       const rawBody = request.rawBody || ''
       const resultXml = await handlePayCallback(rawBody)
       reply.type('application/xml').send(resultXml)
