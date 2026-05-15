@@ -64,6 +64,20 @@ export async function initPool() {
   return initDatabase()
 }
 
+// 通用查询
+export async function query(sql, params = []) {
+  const p = getPool()
+  const [rows] = await p.query(sql, params)
+  return rows
+}
+
+// 通用插入，返回自增ID或影响行数
+export async function insert(sql, params = []) {
+  const p = getPool()
+  const [result] = await p.query(sql, params)
+  return result.insertId || result.affectedRows || 0
+}
+
 // 自动建表（启动时调用）
 export async function ensureTables() {
   const p = getPool()
