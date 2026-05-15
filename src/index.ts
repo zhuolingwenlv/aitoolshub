@@ -111,6 +111,16 @@ app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }
 // 启动
 const start = async () => {
   try {
+    // MySQL 连接测试 + 自动建表
+    try {
+      const { testConnection } = await import('./db/mysql.js')
+      await testConnection()
+      const { ensureTables } = await import('./db/store.js')
+      await ensureTables()
+    } catch (err) {
+      console.warn('[MySQL] 初始化跳过（可能 DATABASE_URL 未配置）:', (err as Error).message)
+    }
+
     await app.listen({ port: config.port, host: config.host })
     console.log(`✅ 启信通后端已启动: http://${config.host}:${config.port}`)
   } catch (err) {
