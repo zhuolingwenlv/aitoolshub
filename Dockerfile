@@ -11,11 +11,14 @@ RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
 # 拷贝所有代码（包含 src/ 和已编译的 dist/）
 COPY . .
 
-# 编译 TypeScript → 生成 dist/index.js
+# 编译 TypeScript → 生成 dist/index.js（esbuild，无类型检查，秒级完成）
 RUN npm install @types/node && npm run build
 
+# 创建运行时目录
+RUN mkdir -p /app/public/pdfs
+
 # 时区设置（腾讯云要求上海时区）
-ENV TZ=Asia/Shanghai
+ENV NODE_ENV=production TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 EXPOSE 3000

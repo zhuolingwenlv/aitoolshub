@@ -18,8 +18,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PDF_DIR = path.join(__dirname, '../../../public/pdfs');
+const PDF_DIR = process.env.NODE_ENV === 'production'
+  ? '/app/public/pdfs'
+  : path.join(path.dirname(fileURLToPath(import.meta.url)), '../../../public/pdfs');
 
 // 确保PDF目录存在
 if (!fs.existsSync(PDF_DIR)) {
