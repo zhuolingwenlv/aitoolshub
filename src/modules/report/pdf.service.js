@@ -23,8 +23,12 @@ const PDF_DIR = process.env.NODE_ENV === 'production'
   : path.join(path.dirname(fileURLToPath(import.meta.url)), '../../../public/pdfs');
 
 // 确保PDF目录存在
-if (!fs.existsSync(PDF_DIR)) {
-  fs.mkdirSync(PDF_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(PDF_DIR)) {
+    fs.mkdirSync(PDF_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[PDF] 目录创建失败（可能已存在或无权限）:', String(e));
 }
 
 // ==================== 任务队列 ====================

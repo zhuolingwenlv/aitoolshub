@@ -82,12 +82,25 @@ const PUBLIC_DIR = process.env.NODE_ENV === 'production'
 const STATIC_DIR = process.env.NODE_ENV === 'production'
   ? '/app/public'
   : path.join(PROJECT_ROOT, 'public')
-console.log('[Static] PUBLIC_DIR =', PUBLIC_DIR, '| STATIC_DIR =', STATIC_DIR)
-await app.register(staticFiles, {
-  root: PUBLIC_DIR,
-  prefix: '/pdfs',
-  decorateReply: false,
-})
+// PDF 目录不存在则自动创建（生产环境 /app 可能有写权限限制）
+try {
+  const fs = await import('fs')
+  fs.mkdirSync(PUBLIC_DIR, { recursive: true })
+  fs.mkdirSync(STATIC_DIR, { recursive: true })
+} catch (e) {
+  console.warn('[Static] 目录创建失败（可能已存在或无权限）:', String(e))
+}
+
+try {
+  await app.register(staticFiles, {
+    root: PUBLIC_DIR,
+    prefix: '/pdfs',
+    decorateReply: false,
+  })
+  console.log('[Static] PDF静态文件已注册:', PUBLIC_DIR)
+} catch (e) {
+  console.warn('[Static] PDF静态文件注册失败，服务继续运行:', String(e))
+}
 
 // 隐私政策路由
 app.get('/privacy', async (_req, reply) => {
