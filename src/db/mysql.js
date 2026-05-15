@@ -63,3 +63,87 @@ export function getPool() {
 export async function initPool() {
   return initDatabase()
 }
+
+// 自动建表（启动时调用）
+export async function ensureTables() {
+  const p = getPool()
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      openid VARCHAR(64) PRIMARY KEY,
+      phone VARCHAR(20) DEFAULT NULL,
+      unionid VARCHAR(64) DEFAULT NULL,
+      nickname VARCHAR(50) DEFAULT NULL,
+      register_source VARCHAR(20) NOT NULL DEFAULT 'wechat',
+      is_deleted TINYINT(1) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  `)
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS drafts (
+      report_id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL,
+      scene VARCHAR(10) DEFAULT NULL,
+      focus JSON DEFAULT NULL,
+      evidence JSON DEFAULT NULL,
+      report_data JSON DEFAULT NULL,
+      is_locked TINYINT(1) DEFAULT 0,
+      order_id VARCHAR(36) DEFAULT NULL,
+      is_deleted TINYINT(1) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(openid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  `)
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      order_id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL,
+      plan_id VARCHAR(20) NOT NULL,
+      plan_name VARCHAR(50) NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      pay_status VARCHAR(20) DEFAULT 'pending',
+      wechat_trade_no VARCHAR(64) DEFAULT NULL,
+      paid_at TIMESTAMP NULL DEFAULT NULL,
+      wx_callback_raw TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(openid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  `)
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS members (
+      user_id VARCHAR(64) PRIMARY KEY,
+      level VARCHAR(20) NOT NULL DEFAULT 'free',
+      plan_name VARCHAR(50) DEFAULT NULL,
+      total_times INT DEFAULT 0,
+      remain_times INT DEFAULT 0,
+      expire_time TIMESTAMP NULL DEFAULT NULL,
+      renew_discount DECIMAL(3,2) DEFAULT NULL,
+      is_deleted TINYINT(1) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(openid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  `)
+
+  // 审计日志表（合规必需，用户注销前必须记录操作）
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL,
+      action_type VARCHAR(30) NOT NULL,
+      target_id VARCHAR(36) DEFAULT NULL,
+      ip_address VARCHAR(45) DEFAULT NULL,
+      user_agent TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(openid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  `)
+
+  console.log('[MySQL] 全部表创建/检查完成')
+}

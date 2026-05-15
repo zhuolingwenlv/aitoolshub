@@ -350,6 +350,16 @@ export async function ensureTables() {
       created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+
+    `CREATE TABLE IF NOT EXISTS audit_logs (
+      id           VARCHAR(36)  PRIMARY KEY,
+      user_id      VARCHAR(64)  NOT NULL,
+      action_type  VARCHAR(30)  NOT NULL,
+      target_id    VARCHAR(36)  DEFAULT NULL,
+      ip_address   VARCHAR(45)  DEFAULT NULL,
+      user_agent   TEXT         DEFAULT NULL,
+      created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
   ]
 
   for (const stmt of statements) {
@@ -362,5 +372,5 @@ export async function ensureTables() {
       }
     }
   }
-  console.log('[MySQL] 四张表检查完成')
+  console.log('[MySQL] 五张表检查完成')
 }
