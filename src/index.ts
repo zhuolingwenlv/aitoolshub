@@ -123,14 +123,43 @@ await app.register(payRoutes, { prefix: '' })
 // 健康检查 /api/v1/health
 app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }))
 
-// 手动触发建表（诊断用）
-app.post('/api/v1/admin/init-db', async () => {
+// 诊断接口：查看真实表状态
+app.get('/api/v1/admin/tables', async (_req, reply) => {
   try {
-    await initPool()
-    await ensureTables()
-    return { ok: true, message: '五张表建表完成' }
+    const { getPool } = await import('./db/mysql.js')
+    const pool = getPool()
+    const [rows] = await pool.query('SHOW TABLES')
+    const tables = rows.map((r: any) => Object.values(r)[0])
+    return { ok: true, tables }
   } catch (err) {
     return { ok: false, error: String(err) }
+  }
+})
+
+// 强制重建五张表（先删后建）
+app.post('/api/v1/admin/init-db', async (_req, reply) => {
+  try {
+    const { initPool, query } = await import('./db/mysql.js')
+    await initPool()
+    const { ensureTables } = await import('./db/store.js')
+    // 先查现有表
+    const pool = (await import('./db/mysql.js')).getPool()
+    const [rows] = await pool.query('SHOW TABLES')
+    const existingTables = rows.map((r: any) => Object.values(r)[0])
+    if (existingTables.length > 0) {
+      // 有旧表，先删掉（防止结构错误）
+      for (const t of existingTables) {
+        await pool.query(`DROP TABLE IF EXISTS \`${t}\``)
+      }
+      console.log('[Admin] 已删除旧表:', existingTables)
+    }
+    await ensureTables()
+    const [rows2] = await pool.query('SHOW TABLES')
+    const tables = rows2.map((r: any) => Object.values(r)[0])
+    return { ok: true, message: '五张表重建完成', tables }
+  } catch (err) {
+    console.error('[Admin] 建表失败:', err)
+    return reply.status(500).send({ ok: false, error: String(err) })
   }
 })
 
