@@ -13,6 +13,7 @@ import { verifyRoutes } from './modules/verify/verify.route.js'
 import { memberRoutes } from './modules/member/member.route.js'
 import adminRoute from './modules/admin/admin.route.js'
 import { webhookRoutes } from './modules/ext/webhook.route.js'
+import payRoutes from './modules/pay/pay.route.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -78,6 +79,7 @@ await app.register(verifyRoutes, { prefix: '/api/v1/verify' })
 await app.register(memberRoutes, { prefix: '/api/v1/member' })
 await app.register(adminRoute, { prefix: '/api/v1/admin' })
 await app.register(webhookRoutes, { prefix: '/api/v1/ext' })
+await app.register(payRoutes, { prefix: '' })
 
 // 健康检查
 app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }))
