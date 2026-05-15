@@ -12,6 +12,7 @@ RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
 COPY . .
 
 # 编译 TypeScript → 生成 dist/index.js（esbuild，无类型检查，秒级完成）
+# mysql2/sql-escaper/node:buffer 必须 external，否则 sql-escaper 内的动态 require 会打包失败
 RUN npm install @types/node && npm run build
 
 # 创建运行时目录
