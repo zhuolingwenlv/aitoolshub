@@ -10,8 +10,8 @@ RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
 # 再拷贝所有代码
 COPY . .
 
-# 编译 TypeScript → 生成 dist/index.js（--force 跳过缓存强制安装 @types/node）
-RUN npm install --force && npm run build
+# 编译 TypeScript → 生成 dist/index.js（先补装 @types/node 确保 tsc 类型检查通过）
+RUN npm install @types/node && npm run build
 
 # 时区设置（腾讯云要求上海时区）
 ENV TZ=Asia/Shanghai
