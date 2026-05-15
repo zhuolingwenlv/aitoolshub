@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc && cp -r src/data dist/ && cp src/modules/report/*.js dist/modules/report/ && cp src/modules/member/*.ts dist/modules/member/ && cp src/modules/verify/*.ts dist/modules/verify/",
+    "build": "tsc && cp -r src/data dist/",
     "start": "node dist/index.js",
     "db:migrate": "tsx src/db/migrate.ts"
   },
@@ -14,7 +14,7 @@
     "@fastify/jwt": "^8.0.0",
     "@fastify/multipart": "^8.1.0",
     "@fastify/static": "^6.11.2",
-    "@types/node": "^20.0.0",
+    "@types/node": "^20.19.41",
     "axios": "^1.6.0",
     "dotenv": "^16.4.0",
     "fastify": "^4.26.0",
