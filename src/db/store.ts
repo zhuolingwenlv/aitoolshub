@@ -363,13 +363,13 @@ export async function ensureTables() {
   ]
 
   for (const stmt of statements) {
+    const tableName = stmt.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] || 'unknown'
     try {
       await query(stmt, [])
+      console.log(`[MySQL] 建表成功: ${tableName}`)
     } catch (e: any) {
-      // 忽略"表已存在"错误
-      if (!e.message.includes('already exists')) {
-        console.warn('[MySQL] 建表警告:', e.message)
-      }
+      console.error(`[MySQL] 建表失败 [${tableName}]:`, e.message)
+      throw e // 失败就抛出来，不要静默
     }
   }
   console.log('[MySQL] 五张表检查完成')
