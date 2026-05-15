@@ -42,7 +42,7 @@ app.decorate('authenticate', async (request: any, reply: any) => {
 })
 
 // 文件上传 multipart
-await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } })
+await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } })
 
 // PDF静态文件访问 /pdfs/*
 // root指向public/pdfs/，prefix为/pdfs，这样 PDF 文件直接通过 /pdfs/文件名 访问
