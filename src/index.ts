@@ -45,18 +45,29 @@ await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } })
 
 // PDF静态文件访问 /pdfs/*
 // root指向public/pdfs/，prefix为/pdfs，这样 PDF 文件直接通过 /pdfs/文件名 访问
-// 容器内 /app，Windows开发环境用 __dirname 上级
+// PDF静态文件访问 /pdfs/*
 const PROJECT_ROOT = process.env.NODE_ENV === 'production'
   ? '/app'
   : path.join(__dirname, '..')
 const PUBLIC_DIR = process.env.NODE_ENV === 'production'
   ? '/app/public/pdfs'
   : path.join(PROJECT_ROOT, 'public/pdfs')
-console.log('[Static] PUBLIC_DIR =', PUBLIC_DIR)
+const STATIC_DIR = process.env.NODE_ENV === 'production'
+  ? '/app/public'
+  : path.join(PROJECT_ROOT, 'public')
+console.log('[Static] PUBLIC_DIR =', PUBLIC_DIR, '| STATIC_DIR =', STATIC_DIR)
 await app.register(staticFiles, {
   root: PUBLIC_DIR,
   prefix: '/pdfs',
   decorateReply: false,
+})
+
+// 隐私政策 /privacy.html
+await app.register(staticFiles, {
+  root: STATIC_DIR,
+  prefix: '/privacy.html',
+  decorateReply: false,
+  wildcard: false,
 })
 
 // 路由注册
