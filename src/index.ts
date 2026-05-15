@@ -62,12 +62,12 @@ await app.register(staticFiles, {
   decorateReply: false,
 })
 
-// 隐私政策 /privacy.html
-await app.register(staticFiles, {
-  root: STATIC_DIR,
-  prefix: '/privacy.html',
-  decorateReply: false,
-  wildcard: false,
+// 隐私政策路由
+app.get('/privacy', async (_req, reply) => {
+  const fs = await import('fs')
+  const privacyPath = path.join(STATIC_DIR, 'privacy.html')
+  const html = fs.readFileSync(privacyPath, 'utf-8')
+  return reply.type('text/html').send(html)
 })
 
 // 路由注册
