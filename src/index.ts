@@ -14,6 +14,8 @@ import { memberRoutes } from './modules/member/member.route.js'
 import adminRoute from './modules/admin/admin.route.js'
 import { webhookRoutes } from './modules/ext/webhook.route.js'
 import { payRoutes } from './modules/pay/pay.route.js'
+import { initPool } from './db/mysql.js'
+import { ensureTables } from './db/store.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -105,20 +107,29 @@ await app.register(adminRoute, { prefix: '/api/v1/admin' })
 await app.register(webhookRoutes, { prefix: '/api/v1/ext' })
 await app.register(payRoutes, { prefix: '' })
 
-// 健康检查
+// 健康检查 /api/v1/health
 app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }))
+
+// 手动触发建表（诊断用）
+app.post('/api/v1/admin/init-db', async () => {
+  try {
+    await initPool()
+    await ensureTables()
+    return { ok: true, message: '五张表建表完成' }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+})
 
 // 启动
 const start = async () => {
   try {
     // MySQL 连接测试 + 自动建表
     try {
-      const { initPool } = await import('./db/mysql.js')
       await initPool()
-      const { ensureTables } = await import('./db/store.js')
       await ensureTables()
     } catch (err) {
-      console.warn('[MySQL] 初始化跳过（可能 DATABASE_URL 未配置）:', (err as Error).message)
+      console.error('[MySQL] 初始化失败:', err)
     }
 
     await app.listen({ port: config.port, host: config.host })
