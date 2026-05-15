@@ -8,8 +8,11 @@ COPY package.json package-lock.json ./
 RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
     --no-audit --no-fund --prefer-offline
 
-# 拷贝所有代码（包含已编译的 dist/，也包含 src/ 源码）
+# 拷贝所有代码（包含 src/ 和已编译的 dist/）
 COPY . .
+
+# 编译 TypeScript → 生成 dist/index.js
+RUN npm install @types/node && npm run build
 
 # 时区设置（腾讯云要求上海时区）
 ENV TZ=Asia/Shanghai
