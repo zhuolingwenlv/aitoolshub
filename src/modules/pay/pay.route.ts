@@ -1,24 +1,19 @@
 import { FastifyInstance } from 'fastify'
-import { unifiedOrder, handlePayCallback } from './pay.service.js'
 
 export async function payRoutes(fastify: FastifyInstance) {
-  // 微信支付下单 POST /api/v1/pay/create
-  fastify.post('/api/v1/pay/create', async (request: any, reply: any) => {
-    const { openid, planId, memberLevel, totalFee, userId } = request.body as any
-    if (!openid || !planId || memberLevel === undefined || !totalFee) {
-      return reply.code(400).send({ success: false, error: '缺少参数' })
-    }
-    const result = await unifiedOrder({ openid, planId, memberLevel, totalFee, userId: userId || openid })
-    if (!result.success) {
-      return reply.code(500).send({ success: false, error: result.error })
-    }
-    return reply.send({ success: true, data: result.data })
+  // 健康测试
+  fastify.get('/pay/test', async () => ({ pay: 'ok' }))
+
+  // 微信支付下单
+  fastify.post('/pay/create', async (request: any, reply: any) => {
+    const body = request.body as any
+    console.log('[Pay] create called with', body)
+    return reply.send({ success: true, data: { test: 'hello' } })
   })
 
-  // 微信支付回调 POST /api/v1/pay/callback
-  fastify.post('/api/v1/pay/callback', async (request: any, reply: any) => {
-    const xmlBody = request.body instanceof Buffer ? request.body.toString('utf8') : JSON.stringify(request.body)
-    const result = await handlePayCallback(xmlBody)
-    reply.type('application/xml').send(result)
+  // 微信支付回调
+  fastify.post('/pay/callback', async (request: any, reply: any) => {
+    console.log('[Pay] callback called')
+    return reply.type('application/xml').send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
   })
 }
