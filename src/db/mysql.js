@@ -20,6 +20,10 @@ async function initDatabase() {
   const cfg = getConfig()
   if (!cfg.password) throw new Error('MySQL 密码未配置（DB_PASS 环境变量）')
 
+  // 腾讯云 MySQL 要求 explicit_zero_for_timestamp 参数，需要显式设置 zerofill
+  // 所有 TIMESTAMP 列用 DEFAULT 0 避免 NO_ZERO_DATE 拒绝
+  const timestampOpt = 'ERROR_FOR_DIVISION_BY_ZERO=0,NO_ZERO_DATE=0,NO_ZERO_IN_DATE=0'
+
   // Step1: 先不带 database 连接，用于创建库
   const tempPool = mysql.createPool({
     host: cfg.host,
@@ -29,6 +33,8 @@ async function initDatabase() {
     charset: 'utf8',
     timezone: '+08:00',
     connectTimeout: 10000,
+    // 宽松模式，避免严格模式拒绝 TIMESTAMP DEFAULT NULL
+    flags: ['-STRICT_TRANS_TABLES', '-STRICT_ALL_TABLES'],
   })
 
   // 创建数据库（如果不存在）
@@ -50,6 +56,8 @@ async function initDatabase() {
     keepAliveInitialDelay: 10000,
     charset: 'utf8',
     timezone: '+08:00',
+    // 宽松模式，TIMESTAMP 允许 0 值
+    flags: ['-STRICT_TRANS_TABLES', '-STRICT_ALL_TABLES'],
   })
   console.log(`[MySQL] 连接池创建: ${cfg.host}:${cfg.port}/${cfg.database}`)
   return pool
@@ -84,78 +92,74 @@ export async function ensureTables() {
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS users (
-      openid VARCHAR(64) PRIMARY KEY,
-      phone VARCHAR(20) DEFAULT NULL,
-      unionid VARCHAR(64) DEFAULT NULL,
-      nickname VARCHAR(50) DEFAULT NULL,
+      openid         VARCHAR(64)  PRIMARY KEY,
+      phone          VARCHAR(20)  DEFAULT NULL,
+      unionid        VARCHAR(64)  DEFAULT NULL,
+      nickname       VARCHAR(50)  DEFAULT NULL,
       register_source VARCHAR(20) NOT NULL DEFAULT 'wechat',
-      is_deleted TINYINT(1) DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      is_deleted     TINYINT(1)   DEFAULT 0,
+      created_at     TIMESTAMP    DEFAULT 0,
+      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `)
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS drafts (
-      report_id VARCHAR(36) PRIMARY KEY,
-      user_id VARCHAR(64) NOT NULL,
-      scene VARCHAR(10) DEFAULT NULL,
-      focus JSON DEFAULT NULL,
-      evidence JSON DEFAULT NULL,
-      report_data JSON DEFAULT NULL,
-      is_locked TINYINT(1) DEFAULT 0,
-      order_id VARCHAR(36) DEFAULT NULL,
-      is_deleted TINYINT(1) DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(openid)
+      report_id   VARCHAR(36)  PRIMARY KEY,
+      user_id     VARCHAR(64)  NOT NULL,
+      scene       VARCHAR(10)  DEFAULT NULL,
+      focus       JSON         DEFAULT NULL,
+      evidence    JSON         DEFAULT NULL,
+      report_data JSON         DEFAULT NULL,
+      is_locked   TINYINT(1)   DEFAULT 0,
+      order_id    VARCHAR(36)  DEFAULT NULL,
+      is_deleted  TINYINT(1)   DEFAULT 0,
+      created_at  TIMESTAMP    DEFAULT 0,
+      updated_at  TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `)
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS orders (
-      order_id VARCHAR(36) PRIMARY KEY,
-      user_id VARCHAR(64) NOT NULL,
-      plan_id VARCHAR(20) NOT NULL,
-      plan_name VARCHAR(50) NOT NULL,
-      amount DECIMAL(10,2) NOT NULL,
-      pay_status VARCHAR(20) DEFAULT 'pending',
-      wechat_trade_no VARCHAR(64) DEFAULT NULL,
-      paid_at TIMESTAMP NULL DEFAULT NULL,
-      wx_callback_raw TEXT DEFAULT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(openid)
+      order_id        VARCHAR(36)  PRIMARY KEY,
+      user_id         VARCHAR(64)  NOT NULL,
+      plan_id         VARCHAR(20)  NOT NULL,
+      plan_name       VARCHAR(50)  NOT NULL,
+      amount          DECIMAL(10,2) NOT NULL,
+      pay_status      VARCHAR(20)  DEFAULT 'pending',
+      wechat_trade_no VARCHAR(64)  DEFAULT NULL,
+      paid_at         TIMESTAMP    DEFAULT 0,
+      wx_callback_raw TEXT         DEFAULT NULL,
+      created_at      TIMESTAMP    DEFAULT 0,
+      updated_at      TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `)
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS members (
-      user_id VARCHAR(64) PRIMARY KEY,
-      level VARCHAR(20) NOT NULL DEFAULT 'free',
-      plan_name VARCHAR(50) DEFAULT NULL,
-      total_times INT DEFAULT 0,
-      remain_times INT DEFAULT 0,
-      expire_time TIMESTAMP NULL DEFAULT NULL,
+      user_id        VARCHAR(64)  PRIMARY KEY,
+      level          VARCHAR(20)  NOT NULL DEFAULT 'free',
+      plan_name      VARCHAR(50)  DEFAULT NULL,
+      total_times    INT          DEFAULT 0,
+      remain_times   INT          DEFAULT 0,
+      expire_time    TIMESTAMP    DEFAULT 0,
       renew_discount DECIMAL(3,2) DEFAULT NULL,
-      is_deleted TINYINT(1) DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(openid)
+      is_deleted     TINYINT(1)   DEFAULT 0,
+      created_at     TIMESTAMP    DEFAULT 0,
+      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `)
 
   // 审计日志表（合规必需，用户注销前必须记录操作）
   await p.query(`
     CREATE TABLE IF NOT EXISTS audit_logs (
-      id VARCHAR(36) PRIMARY KEY,
-      user_id VARCHAR(64) NOT NULL,
-      action_type VARCHAR(30) NOT NULL,
-      target_id VARCHAR(36) DEFAULT NULL,
-      ip_address VARCHAR(45) DEFAULT NULL,
-      user_agent TEXT DEFAULT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(openid)
+      id           VARCHAR(36)  PRIMARY KEY,
+      user_id      VARCHAR(64)  NOT NULL,
+      action_type  VARCHAR(30)  NOT NULL,
+      target_id    VARCHAR(36)  DEFAULT NULL,
+      ip_address   VARCHAR(45)  DEFAULT NULL,
+      user_agent   TEXT         DEFAULT NULL,
+      created_at   TIMESTAMP    DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `)
 

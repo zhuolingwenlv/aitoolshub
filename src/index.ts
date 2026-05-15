@@ -166,13 +166,10 @@ app.post('/api/v1/admin/init-db', async (_req, reply) => {
 // 启动
 const start = async () => {
   try {
-    // MySQL 连接测试 + 自动建表
-    try {
-      await initPool()
-      await ensureTables()
-    } catch (err) {
-      console.error('[MySQL] 初始化失败:', err)
-    }
+    // MySQL 连接测试 + 自动建表（失败直接抛错，不吞掉）
+    await initPool()
+    await ensureTables()
+    console.log('[MySQL] ✅ 初始化完成')
 
     await app.listen({ port: config.port, host: config.host })
     console.log(`✅ 启信通后端已启动: http://${config.host}:${config.port}`)
