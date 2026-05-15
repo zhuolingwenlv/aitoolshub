@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>启信通 · 管理后台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; background: #f5f6fa; color: #333; }
+
+/* 顶部导航 */
+.topbar { background: linear-gradient(135deg, #E85A38, #C06080); color: #fff; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; z-index: 100; box-shadow: 0 2px 12px rgba(232,90,56,0.3); }
+.topbar h1 { font-size: 18px; font-weight: 600; }
+.topbar .nav { display: flex; gap: 8px; }
+.topbar .nav button { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+.topbar .nav button:hover, .topbar .nav button.active { background: rgba(255,255,255,0.2); border-color: #fff; }
+.topbar .admin-info { font-size: 13px; opacity: 0.9; }
+
+/* 主内容 */
+.main { padding-top: 72px; padding: 72px 24px 24px; max-width: 1400px; margin: 0 auto; }
+
+/* 登录页 */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #E85A38, #C06080, #4050B8); }
+.login-box { background: #fff; border-radius: 16px; padding: 48px 40px; width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.login-box h2 { font-size: 24px; margin-bottom: 8px; text-align: center; color: #E85A38; }
+.login-box p { font-size: 13px; color: #888; text-align: center; margin-bottom: 32px; }
+.login-box input { width: 100%; padding: 12px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 16px; outline: none; transition: border-color 0.2s; }
+.login-box input:focus { border-color: #E85A38; }
+.login-box button { width: 100%; padding: 12px; background: linear-gradient(135deg, #E85A38, #C06080); color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; transition: opacity 0.2s; }
+.login-box button:hover { opacity: 0.9; }
+.login-box .hint { font-size: 11px; color: #aaa; text-align: center; margin-top: 12px; }
+
+/* 统计卡片 */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.2s; }
+.stat-card:hover { transform: translateY(-2px); }
+.stat-card .label { font-size: 12px; color: #888; margin-bottom: 8px; }
+.stat-card .value { font-size: 28px; font-weight: 700; color: #E85A38; }
+.stat-card .sub { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+/* 图表区 */
+.charts { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+.chart-box { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.chart-box h3 { font-size: 14px; color: #333; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+
+/* 折线图（CSS模拟） */
+.bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding-top: 8px; }
+.bar-chart .bar { flex: 1; background: linear-gradient(to top, #E85A38, #C06080); border-radius: 3px 3px 0 0; min-height: 4px; transition: opacity 0.2s; cursor: pointer; opacity: 0.8; }
+.bar-chart .bar:hover { opacity: 1; }
+.bar-chart .bar-label { font-size: 9px; color: #aaa; text-align: center; margin-top: 4px; }
+
+/* 饼图（CSS模拟） */
+.pie-legend { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.pie-legend .item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pie-legend .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* 表格 */
+.table-box { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; margin-bottom: 24px; }
+.table-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
+.table-header h3 { font-size: 15px; }
+.table-header .actions { display: flex; gap: 8px; }
+.table-header input { padding: 7px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; outline: none; width: 200px; }
+.table-header input:focus { border-color: #E85A38; }
+table { width: 100%; border-collapse: collapse; }
+th { background: #fafafa; padding: 12px 16px; text-align: left; font-size: 12px; color: #888; font-weight: 500; border-bottom: 1px solid #f0f0f0; }
+td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid #f8f8f8; }
+tr:hover td { background: #fafafa; }
+tr:last-child td { border-bottom: none; }
+
+/* 标签 */
+.tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.tag-svip { background: #FFF3E0; color: #E65100; }
+.tag-vip { background: #E8F5E9; color: #2E7D32; }
+.tag-normal { background: #E3F2FD; color: #1565C0; }
+.tag-paid { background: #E8F5E9; color: #2E7D32; }
+.tag-refunded { background: #FFF3E0; color: #E65100; }
+.tag-pending { background: #FFF8E1; color: #F57F17; }
+
+/* 分页 */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; }
+.pagination button { padding: 6px 14px; border: 1px solid #e0e0e0; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.pagination button:hover { border-color: #E85A38; color: #E85A38; }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination span { font-size: 13px; color: #888; }
+
+/* 弹窗 */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.modal { background: #fff; border-radius: 16px; width: 600px; max-height: 80vh; overflow-y: auto; }
+.modal-large { width: 900px; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { font-size: 16px; }
+.modal-header .close { width: 32px; height: 32px; border-radius: 50%; border: none; background: #f5f5f5; cursor: pointer; font-size: 18px; line-height: 1; }
+.modal-body { padding: 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 表单 */
+.form-row { margin-bottom: 16px; }
+.form-row label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
+.form-row input, .form-row select { width: 100%; padding: 9px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; outline: none; }
+.form-row input:focus { border-color: #E85A38; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.btn { padding: 8px 20px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: linear-gradient(135deg, #E85A38, #C06080); color: #fff; }
+.btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #e0e0e0; }
+.btn-danger { background: #FF3B30; color: #fff; }
+
+/* 用户详情 */
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-item { padding: 12px 16px; background: #fafafa; border-radius: 8px; }
+.detail-item .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.detail-item .value { font-size: 14px; color: #333; font-weight: 500; }
+
+/* tab切换 */
+.tabs { display: flex; border-bottom: 1px solid #f0f0f0; margin-bottom: 16px; }
+.tab { padding: 10px 20px; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; color: #888; transition: all 0.2s; }
+.tab:hover { color: #333; }
+.tab.active { color: #E85A38; border-bottom-color: #E85A38; }
+
+/* 会员操作按钮 */
+.action-btns { display: flex; gap: 6px; }
+.action-btns .btn { padding: 4px 10px; font-size: 12px; }
+
+/* toast */
+.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 24px; border-radius: 24px; font-size: 13px; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* 加载态 */
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+
+/* 图标 */
+.ico { font-style: normal; }
+
+/* 隐藏 */
+.hide { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<div class="topbar" id="topbar" style="display:none;">
+  <h1>启信通 · 管理后台</h1>
+  <div class="nav">
+    <button class="active" data-page="dashboard">📊 仪表盘</button>
+    <button data-page="users">👥 用户管理</button>
+    <button data-page="orders">📦 订单管理</button>
+    <button data-page="members">👑 会员管理</button>
+  </div>
+  <div class="admin-info" id="adminInfo"></div>
+</div>
+
+<!-- 主内容 -->
+<div class="main" id="main">
+
+  <!-- 登录页 -->
+  <div class="login-wrap" id="loginPage">
+    <div class="login-box">
+      <h2>🔐 管理后台登录</h2>
+      <p>输入管理员 Token 以访问后台</p>
+      <input type="password" id="tokenInput" placeholder="请输入 Admin-Token" onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()">登 录</button>
+      <p class="hint">测试阶段 Token 任意填写（如：admin123）</p>
+    </div>
+  </div>
+
+  <!-- 仪表盘 -->
+  <div id="page-dashboard" class="hide">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="label">今日新增用户</div><div class="value" id="stat-todayUsers">-</div><div class="sub">较昨日</div></div>
+      <div class="stat-card"><div class="label">今日订单</div><div class="value" id="stat-todayOrders">-</div><div class="sub">较昨日</div></div>
+      <div class="stat-card"><div class="label">今日报告生成</div><div class="value" id="stat-todayReports">-</div><div class="sub">累计</div></div>
+      <div class="stat-card"><div class="label">会员总数</div><div class="value" id="stat-totalMembers">-</div><div class="sub">付费用户</div></div>
+      <div class="stat-card"><div class="label">今日收入</div><div class="value" id="stat-todayRevenue">-</div><div class="sub">元</div></div>
+      <div class="stat-card"><div class="label">本月收入</div><div class="value" id="stat-monthRevenue">-</div><div class="sub">元</div></div>
+    </div>
+    <div class="charts">
+      <div class="chart-box">
+        <h3>📈 收入趋势（近30天）</h3>
+        <div class="bar-chart" id="revenueChart"></div>
+      </div>
+      <div class="chart-box">
+        <h3>📊 纠纷类型分布</h3>
+        <div id="disputeChart" style="display:flex;gap:16px;align-items:center;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 用户管理 -->
+  <div id="page-users" class="hide">
+    <div class="table-box">
+      <div class="table-header">
+        <h3>用户列表</h3>
+        <div class="actions">
+          <input type="text" id="userSearch" placeholder="手机号 / 昵称" oninput="searchUsers()">
+          <button class="btn btn-secondary" onclick="exportUsers()">📥 导出</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>用户ID</th><th>昵称</th><th>手机号</th><th>会员等级</th><th>报告数</th><th>注册时间</th><th>最近活跃</th><th>操作</th>
+        </tr></thead>
+        <tbody id="usersTable"></tbody>
+      </table>
+      <div class="pagination" id="usersPager"></div>
+    </div>
+  </div>
+
+  <!-- 订单管理 -->
+  <div id="page-orders" class="hide">
+    <div class="table-box">
+      <div class="table-header">
+        <h3>订单列表</h3>
+        <div class="actions">
+          <input type="text" id="orderSearch" placeholder="订单号 / 手机号" oninput="searchOrders()">
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>订单号</th><th>用户</th><th>产品</th><th>金额</th><th>支付状态</th><th>支付时间</th><th>操作</th>
+        </tr></thead>
+        <tbody id="ordersTable"></tbody>
+      </table>
+      <div class="pagination" id="ordersPager"></div>
+    </div>
+  </div>
+
+  <!-- 会员管理 -->
+  <div id="page-members" class="hide">
+    <div class="table-box">
+      <div class="table-header">
+        <h3>会员列表</h3>
+        <div class="actions">
+          <button class="btn btn-secondary" onclick="showGiftModal()">🎁 批量赠送次数</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>用户</th><th>等级</th><th>到期时间</th><th>剩余次数</th><th>累计使用</th><th>操作</th>
+        </tr></thead>
+        <tbody id="membersTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- 用户详情弹窗 -->
+<div class="modal-overlay hide" id="userDetailModal" onclick="if(event.target===this)closeModal('userDetailModal')">
+  <div class="modal modal-large" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>用户详情</h2>
+      <button class="close" onclick="closeModal('userDetailModal')">×</button>
+    </div>
+    <div class="modal-body" id="userDetailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('userDetailModal')">关闭</button>
+      <button class="btn btn-primary" onclick="showExtendModal()">⏰ 延长会员</button>
+      <button class="btn btn-primary" onclick="showGiftModal()">🎁 赠送次数</button>
+    </div>
+  </div>
+</div>
+
+<!-- 订单详情弹窗 -->
+<div class="modal-overlay hide" id="orderDetailModal" onclick="if(event.target===this)closeModal('orderDetailModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>订单详情</h2>
+      <button class="close" onclick="closeModal('orderDetailModal')">×</button>
+    </div>
+    <div class="modal-body" id="orderDetailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('orderDetailModal')">关闭</button>
+      <button class="btn btn-danger" id="refundBtn" onclick="doRefund()">🔙 发起退款</button>
+    </div>
+  </div>
+</div>
+
+<!-- 延长会员弹窗 -->
+<div class="modal-overlay hide" id="extendModal" onclick="if(event.target===this)closeModal('extendModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>延长会员有效期</h2>
+      <button class="close" onclick="closeModal('extendModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>延长天数</label>
+        <input type="number" id="extendDays" value="30" min="1">
+      </div>
+      <div class="form-row">
+        <label>操作原因（必填）</label>
+        <input type="text" id="extendReason" placeholder="请输入操作原因">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('extendModal')">取消</button>
+      <button class="btn btn-primary" onclick="doExtend()">确认延长</button>
+    </div>
+  </div>
+</div>
+
+<!-- 赠送次数弹窗 -->
+<div class="modal-overlay hide" id="giftModal" onclick="if(event.target===this)closeModal('giftModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="giftModalTitle">赠送梳理次数</h2>
+      <button class="close" onclick="closeModal('giftModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>赠送次数</label>
+        <input type="number" id="giftCount" value="5" min="1">
+      </div>
+      <div class="form-row">
+        <label>操作原因</label>
+        <input type="text" id="giftReason" placeholder="请输入操作原因">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('giftModal')">取消</button>
+      <button class="btn btn-primary" onclick="doGift()">确认赠送</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE = 'https://qxt-backend-257487-7-1301487721.sh.run.tcloudbase.com';
+let gToken = '';
+let gUsers = [];
+let gOrders = [];
+let gCurrentUserId = '';
+let gCurrentOrderId = '';
+let gCurrentUserPhone = '';
+let gPager = { page: 1, pageSize: 10, total: 0 };
+let gOrderPager = { page: 1, pageSize: 10, total: 0 };
+
+// 登录
+function doLogin() {
+  const t = document.getElementById('tokenInput').value.trim();
+  if (!t) return toast('请输入 Token');
+  gToken = t;
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('adminInfo').textContent = '👤 管理员';
+  switchPage('dashboard');
+}
+
+// 导航
+document.querySelectorAll('.topbar .nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.topbar .nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    switchPage(btn.dataset.page);
+  });
+});
+
+function switchPage(page) {
+  document.querySelectorAll('[id^=page-]').forEach(el => el.classList.add('hide'));
+  document.getElementById('page-' + page).classList.remove('hide');
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'users') loadUsers(1);
+  if (page === 'orders') loadOrders(1);
+  if (page === 'members') loadMembers();
+}
+
+// API请求
+async function api(path, opts = {}) {
+  const res = await fetch(BASE + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'Admin-Token': gToken,
+      ...(opts.headers || {})
+    }
+  });
+  const json = await res.json();
+  if (json.code !== 0 && json.code !== undefined) throw new Error(json.message || '请求失败');
+  return json;
+}
+
+// Toast
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// 仪表盘
+async function loadDashboard() {
+  try {
+    const [stats, revenue, disputeTypes] = await Promise.all([
+      api('/api/v1/admin/dashboard/stats'),
+      api('/api/v1/admin/dashboard/revenue?days=14'),
+      api('/api/v1/admin/dashboard/dispute-types')
+    ]);
+
+    const s = stats.data;
+    document.getElementById('stat-todayUsers').textContent = s.todayUsers;
+    document.getElementById('stat-todayOrders').textContent = s.todayOrders;
+    document.getElementById('stat-todayReports').textContent = s.todayReports;
+    document.getElementById('stat-totalMembers').textContent = s.totalMembers;
+    document.getElementById('stat-todayRevenue').textContent = '¥' + s.todayRevenue;
+    document.getElementById('stat-monthRevenue').textContent = '¥' + s.monthRevenue;
+
+    // 收入柱状图
+    const chart = document.getElementById('revenueChart');
+    const max = Math.max(...revenue.data.map(d => d.amount), 1);
+    chart.innerHTML = revenue.data.map(d => {
+      const h = Math.round((d.amount / max) * 110);
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+        <div class="bar" style="height:${h}px;" title="${d.date}: ¥${d.amount}"></div>
+        <span class="bar-label">${d.date.slice(5)}</span>
+      </div>`;
+    }).join('');
+
+    // 纠纷类型饼图
+    const colors = ['#E85A38','#C06080','#4050B8','#FF8C42','#6B8E23','#DAA520','#8B4513','#4682B4','#FF6347','#9370DB'];
+    const total = disputeTypes.data.reduce((a, b) => a + b.count, 0);
+    const pie = document.getElementById('disputeChart');
+    pie.innerHTML = `<div style="position:relative;width:100px;height:100px;">
+      <svg viewBox="0 0 100 100" style="transform:rotate(-90deg);">
+        ${(() => {
+          let start = 0;
+          return disputeTypes.data.slice(0, 5).map((d, i) => {
+            const pct = d.count / total;
+            const dash = pct * 251.2;
+            const color = colors[i % colors.length];
+            const r = `<circle cx="50" cy="50" r="40" fill="none" stroke="${color}" stroke-width="20" stroke-dasharray="${dash} ${251.2 - dash}" stroke-dashoffset="${-start}" />`;
+            start += dash;
+            return r;
+          }).join('');
+        })()}
+      </svg>
+    </div>
+    <div class="pie-legend">
+      ${disputeTypes.data.slice(0, 5).map((d, i) => `
+        <div class="item">
+          <div class="dot" style="background:${colors[i % colors.length]}"></div>
+          <span>${d.name} (${d.count})</span>
+        </div>
+      `).join('')}
+    </div>`;
+  } catch (e) {
+    toast('加载失败: ' + e.message);
+  }
+}
+
+// 用户管理
+async function loadUsers(page = 1) {
+  gPager.page = page;
+  try {
+    const res = await api(`/api/v1/admin/users?page=${page}&pageSize=${gPager.pageSize}`);
+    gUsers = res.data.list;
+    gPager.total = res.data.total;
+    renderUsers();
+  } catch (e) { toast('加载用户失败'); }
+}
+
+function renderUsers() {
+  const tbody = document.getElementById('usersTable');
+  tbody.innerHTML = gUsers.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td>${u.nickname || '-'}</td>
+      <td>${u.phone}</td>
+      <td><span class="tag tag-${u.memberLevel}">${levelName(u.memberLevel)}</span></td>
+      <td>${u.reportCount}</td>
+      <td>${u.createdAt?.slice(0,10) || '-'}</td>
+      <td>${u.lastActive?.slice(0,10) || '-'}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-secondary" onclick="showUserDetail('${u.id}')">详情</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  // 分页
+  const totalPage = Math.ceil(gPager.total / gPager.pageSize);
+  const pager = document.getElementById('usersPager');
+  pager.innerHTML = `
+    <button ${gPager.page <= 1 ? 'disabled' : ''} onclick="loadUsers(${gPager.page - 1})">上一页</button>
+    <span>第 ${gPager.page} / ${totalPage || 1} 页，共 ${gPager.total} 条</span>
+    <button ${gPager.page >= totalPage ? 'disabled' : ''} onclick="loadUsers(${gPager.page + 1})">下一页</button>
+  `;
+}
+
+function levelName(lvl) {
+  return { svip: '黑金', vip: 'VIP', normal: '普通' }[lvl] || lvl;
+}
+
+function searchUsers() {
+  loadUsers(1);
+}
+
+async function showUserDetail(id) {
+  try {
+    const res = await api(`/api/v1/admin/users/${id}`);
+    const u = res.data;
+    gCurrentUserId = id;
+    gCurrentUserPhone = u.phone;
+    document.getElementById('userDetailBody').innerHTML = `
+      <div class="detail-grid" style="margin-bottom:20px;">
+        <div class="detail-item"><div class="label">用户ID</div><div class="value">${u.id}</div></div>
+        <div class="detail-item"><div class="label">昵称</div><div class="value">${u.nickname || '-'}</div></div>
+        <div class="detail-item"><div class="label">手机号</div><div class="value">${u.phone}</div></div>
+        <div class="detail-item"><div class="label">城市</div><div class="value">${u.city || '-'}</div></div>
+        <div class="detail-item"><div class="label">当前等级</div><div class="value"><span class="tag tag-${u.memberHistory?.[0]?.level || 'normal'}">${levelName(u.memberHistory?.[0]?.level || 'normal')}</span></div></div>
+        <div class="detail-item"><div class="label">到期时间</div><div class="value">${u.memberHistory?.[0]?.expireTime || '永久'}</div></div>
+      </div>
+      <div class="tabs">
+        <div class="tab active">📋 梳理记录</div>
+        <div class="tab">📜 操作日志</div>
+      </div>
+      <table>
+        <thead><tr><th>报告ID</th><th>纠纷类型</th><th>状态</th><th>生成时间</th></tr></thead>
+        <tbody>
+          ${(u.reports || []).map(r => `<tr><td>${r.id}</td><td>${r.type}</td><td><span class="tag tag-paid">${r.status}</span></td><td>${r.createdAt}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+    document.getElementById('userDetailModal').classList.remove('hide');
+  } catch (e) { toast('加载详情失败'); }
+}
+
+// 订单管理
+async function loadOrders(page = 1) {
+  gOrderPager.page = page;
+  try {
+    const res = await api(`/api/v1/admin/orders?page=${page}&pageSize=${gOrderPager.pageSize}`);
+    gOrders = res.data.list;
+    gOrderPager.total = res.data.total;
+    renderOrders();
+  } catch (e) { toast('加载订单失败'); }
+}
+
+function renderOrders() {
+  const tbody = document.getElementById('ordersTable');
+  tbody.innerHTML = gOrders.map(o => `
+    <tr>
+      <td><code style="font-size:11px;">${o.orderNo}</code></td>
+      <td>${o.phone}</td>
+      <td>${o.productName}</td>
+      <td>¥${o.amount}</td>
+      <td><span class="tag tag-${o.payStatus === 'paid' ? 'paid' : o.payStatus === 'refunded' ? 'refunded' : 'pending'}">${statusName(o.payStatus)}</span></td>
+      <td>${o.payTime?.slice(0,16) || '-'}</td>
+      <td><button class="btn btn-secondary" onclick="showOrderDetail('${o.id}')">详情</button></td>
+    </tr>
+  `).join('');
+
+  const totalPage = Math.ceil(gOrderPager.total / gOrderPager.pageSize);
+  const pager = document.getElementById('ordersPager');
+  pager.innerHTML = `
+    <button ${gOrderPager.page <= 1 ? 'disabled' : ''} onclick="loadOrders(${gOrderPager.page - 1})">上一页</button>
+    <span>第 ${gOrderPager.page} / ${totalPage || 1} 页，共 ${gOrderPager.total} 条</span>
+    <button ${gOrderPager.page >= totalPage ? 'disabled' : ''} onclick="loadOrders(${gOrderPager.page + 1})">下一页</button>
+  `;
+}
+
+function statusName(s) {
+  return { paid: '已支付', refunded: '已退款', pending: '待支付' }[s] || s;
+}
+
+function searchOrders() { loadOrders(1); }
+
+async function showOrderDetail(id) {
+  try {
+    const res = await api(`/api/v1/admin/orders/${id}`);
+    const o = res.data;
+    gCurrentOrderId = id;
+    document.getElementById('orderDetailBody').innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">订单号</div><div class="value"><code>${o.orderNo}</code></div></div>
+        <div class="detail-item"><div class="label">金额</div><div class="value">¥${o.amount}</div></div>
+        <div class="detail-item"><div class="label">支付状态</div><div class="value"><span class="tag tag-${o.payStatus === 'paid' ? 'paid' : 'refunded'}">${statusName(o.payStatus)}</span></div></div>
+        <div class="detail-item"><div class="label">微信交易号</div><div class="value"><code>${o.transactionId || '-'}</code></div></div>
+      </div>
+    `;
+    document.getElementById('refundBtn').style.display = o.payStatus === 'paid' ? '' : 'none';
+    document.getElementById('orderDetailModal').classList.remove('hide');
+  } catch (e) { toast('加载订单详情失败'); }
+}
+
+// 会员管理
+async function loadMembers() {
+  try {
+    const res = await api(`/api/v1/admin/users?page=1&pageSize=100`);
+    const members = res.data.list.filter(u => u.memberLevel !== 'normal');
+    document.getElementById('membersTable').innerHTML = members.map(u => `
+      <tr>
+        <td>${u.nickname || '-'} (${u.phone})</td>
+        <td><span class="tag tag-${u.memberLevel}">${levelName(u.memberLevel)}</span></td>
+        <td>${u.expireTime || '永久'}</td>
+        <td>无限</td>
+        <td>-</td>
+        <td>
+          <div class="action-btns">
+            <button class="btn btn-secondary" onclick="showExtendModal('${u.id}')">延期</button>
+            <button class="btn btn-secondary" onclick="showGiftModal('${u.id}')">赠次数</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) { toast('加载会员失败'); }
+}
+
+// 弹窗
+function closeModal(id) { document.getElementById(id).classList.add('hide'); }
+
+// 延长会员
+let gExtendUserId = '';
+function showExtendModal(userId) {
+  gExtendUserId = userId || gCurrentUserId;
+  document.getElementById('extendDays').value = '30';
+  document.getElementById('extendReason').value = '';
+  document.getElementById('userDetailModal').classList.add('hide');
+  document.getElementById('extendModal').classList.remove('hide');
+}
+
+async function doExtend() {
+  const days = document.getElementById('extendDays').value;
+  const reason = document.getElementById('extendReason').value.trim();
+  if (!reason) return toast('请填写操作原因');
+  try {
+    await api(`/api/v1/admin/users/${gExtendUserId}/extend`, {
+      method: 'POST',
+      body: JSON.stringify({ days: parseInt(days), reason })
+    });
+    toast('已延长 ' + days + ' 天');
+    closeModal('extendModal');
+  } catch (e) { toast('操作失败'); }
+}
+
+// 赠送次数
+let gGiftUserId = '';
+function showGiftModal(userId) {
+  gGiftUserId = userId || gCurrentUserId;
+  document.getElementById('giftCount').value = '5';
+  document.getElementById('giftReason').value = '';
+  document.getElementById('giftModalTitle').textContent = '赠送梳理次数';
+  document.getElementById('userDetailModal').classList.add('hide');
+  document.getElementById('giftModal').classList.remove('hide');
+}
+
+async function doGift() {
+  const count = document.getElementById('giftCount').value;
+  const reason = document.getElementById('giftReason').value.trim();
+  if (!reason) return toast('请填写操作原因');
+  try {
+    await api(`/api/v1/admin/users/${gGiftUserId}/gift`, {
+      method: 'POST',
+      body: JSON.stringify({ count: parseInt(count), reason })
+    });
+    toast('已赠送 ' + count + ' 次');
+    closeModal('giftModal');
+  } catch (e) { toast('操作失败'); }
+}
+
+// 退款
+async function doRefund() {
+  const reason = prompt('请输入退款原因：');
+  if (!reason) return;
+  try {
+    await api(`/api/v1/admin/orders/${gCurrentOrderId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, operator: 'admin' })
+    });
+    toast('退款申请已提交');
+    closeModal('orderDetailModal');
+    loadOrders(gOrderPager.page);
+  } catch (e) { toast('退款失败: ' + e.message); }
+}
+
+// 导出
+function exportUsers() {
+  const csv = ['ID,昵称,手机号,等级,报告数,注册时间'].concat(
+    gUsers.map(u => `${u.id},${u.nickname||''},${u.phone},${levelName(u.memberLevel)},${u.reportCount},${u.createdAt?.slice(0,10)||''}`)
+  ).join('\n');
+  downloadFile('users.csv', csv, 'text/csv');
+}
+
+function downloadFile(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name;
+  a.click();
+}
+</script>
+</body>
+</html>
