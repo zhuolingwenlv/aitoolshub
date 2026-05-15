@@ -113,8 +113,8 @@ const start = async () => {
   try {
     // MySQL 连接测试 + 自动建表
     try {
-      const { testConnection } = await import('./db/mysql.js')
-      await testConnection()
+      const { initPool } = await import('./db/mysql.js')
+      await initPool()
       const { ensureTables } = await import('./db/store.js')
       await ensureTables()
     } catch (err) {

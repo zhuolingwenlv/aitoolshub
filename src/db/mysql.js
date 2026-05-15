@@ -1,5 +1,6 @@
 /**
  * MySQL 连接池（单例）
+ * 先连接不带 database，创建库后切换
  */
 import mysql from 'mysql2/promise'
 
@@ -15,12 +16,27 @@ function getConfig() {
   }
 }
 
-export function getPool() {
-  if (pool) return pool
+async function initDatabase() {
   const cfg = getConfig()
-  if (!cfg.password) {
-    throw new Error('MySQL 密码未配置（DB_PASS 环境变量）')
-  }
+  if (!cfg.password) throw new Error('MySQL 密码未配置（DB_PASS 环境变量）')
+
+  // Step1: 先不带 database 连接，用于创建库
+  const tempPool = mysql.createPool({
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
+    charset: 'utf8',
+    timezone: '+08:00',
+    connectTimeout: 10000,
+  })
+
+  // 创建数据库（如果不存在）
+  await tempPool.query(`CREATE DATABASE IF NOT EXISTS \`${cfg.database}\` CHARACTER SET utf8 COLLATE utf8_general_ci`)
+  console.log(`[MySQL] 库 ${cfg.database} 已就绪`)
+  await tempPool.end()
+
+  // Step2: 正式建池
   pool = mysql.createPool({
     host: cfg.host,
     port: cfg.port,
@@ -39,25 +55,11 @@ export function getPool() {
   return pool
 }
 
-export async function query(sql, params = []) {
-  const p = getPool()
-  const [rows] = await p.query(sql, params)
-  return rows
+export function getPool() {
+  if (!pool) throw new Error('MySQL 池未初始化，调用 initPool() 等待完成')
+  return pool
 }
 
-export async function insert(sql, params = []) {
-  const p = getPool()
-  const [result] = await p.query(sql, params)
-  return result.insertId
-}
-
-export async function testConnection() {
-  try {
-    await query('SELECT 1 AS ok')
-    console.log('[MySQL] ✅ 连接正常')
-    return true
-  } catch (err) {
-    console.error('[MySQL] ❌ 连接失败:', err.message)
-    return false
-  }
+export async function initPool() {
+  return initDatabase()
 }
