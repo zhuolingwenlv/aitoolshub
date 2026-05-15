@@ -72,7 +72,7 @@ app.get('/privacy', async (_req, reply) => {
 })
 
 // 路由注册
-await app.register(evidenceRoutes, { prefix: '/api/v1/evidence' })
+await app.register(evidenceRoutes, { prefix: '/api/v1/evidence', bodyLimit: 25 * 1024 * 1024 })
 await app.register(reportRoutes, { prefix: '/api/v1/report' })
 await app.register(userRoutes, { prefix: '/api/v1/user' })
 await app.register(verifyRoutes, { prefix: '/api/v1/verify' })
