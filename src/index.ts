@@ -41,8 +41,32 @@ app.decorate('authenticate', async (request: any, reply: any) => {
   }
 })
 
-// 文件上传 multipart
-await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } })
+// 文件上传 multipart（同时捕获原始 body 用于支付回调验签）
+await app.register(multipart, {
+  limits: { fileSize: 25 * 1024 * 1024 },
+  // 捕获原始 XML body（微信支付回调用）
+  onFilePart: (field, stream, filename, encoding, mimetype) => {
+    // multipart 文件 part 由内置逻辑处理，这里不做额外操作
+  },
+})
+
+// 捕获原始 request body（用于微信 XML 回调验签）
+app.addContentTypeParser('application/xml', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    ;(req as any).rawBody = body
+    done(null, body)
+  } catch (err) {
+    done(err as Error, '')
+  }
+})
+app.addContentTypeParser('text/xml', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    ;(req as any).rawBody = body
+    done(null, body)
+  } catch (err) {
+    done(err as Error, '')
+  }
+})
 
 // PDF静态文件访问 /pdfs/*
 // root指向public/pdfs/，prefix为/pdfs，这样 PDF 文件直接通过 /pdfs/文件名 访问
