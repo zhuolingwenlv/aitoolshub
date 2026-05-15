@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { purchaseMember } from '../member/member.service.js'
 
@@ -129,10 +129,10 @@ export async function handlePayCallback(xmlBody: string): Promise<string> {
 
     if (params.result_code === 'SUCCESS') {
       // 更新订单状态 → 开通会员
-      const phone = params.attach?.phone || ''
       if (attach && attach.memberLevel !== undefined) {
+        const userKey = (attach as any).phone || (attach as any).userId || ''
         await purchaseMember(
-          phone || params.attach?.userId || '',
+          userKey,
           attach.memberLevel,
           attach.planId || params.out_trade_no
         )
@@ -171,8 +171,9 @@ function xmlEncode(obj: Record<string, string>): string {
 
 function xmlDecode(xml: string): Record<string, string> {
   const result: Record<string, string> = {}
-  const matches = xml.matchAll(/<(\w+)><!\[CDATA\[([^\]]*)\]\]><\/\1>/g)
-  for (const m of matches) {
+  const re = /<(\w+)><!\[CDATA\[([^\]]*)\]\]><\/\1>/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(xml)) !== null) {
     result[m[1]] = m[2]
   }
   return result

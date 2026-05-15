@@ -13,7 +13,7 @@ import { verifyRoutes } from './modules/verify/verify.route.js'
 import { memberRoutes } from './modules/member/member.route.js'
 import adminRoute from './modules/admin/admin.route.js'
 import { webhookRoutes } from './modules/ext/webhook.route.js'
-import payRoutes from './modules/pay/pay.route.js'
+import { payRoutes } from './modules/pay/pay.route.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
