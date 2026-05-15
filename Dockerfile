@@ -10,6 +10,9 @@ RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
 # 再拷贝所有代码
 COPY . .
 
+# 编译 TypeScript → 生成 dist/index.js（云托管构建目录为根目录）
+RUN npm run build
+
 # 时区设置（腾讯云要求上海时区）
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
