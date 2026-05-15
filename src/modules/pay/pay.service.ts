@@ -1,6 +1,7 @@
 import * as crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { purchaseMember } from '../member/member.service.js'
+import { updateOrderPaid, purchaseMember as storePurchaseMember } from '../../db/store.js'
 
 // ============================================================
 // 微信支付配置（从环境变量读取）
@@ -128,15 +129,25 @@ export async function handlePayCallback(xmlBody: string): Promise<string> {
     }
 
     if (params.result_code === 'SUCCESS') {
-      // 更新订单状态 → 开通会员
-      if (attach && attach.memberLevel !== undefined) {
-        const userKey = (attach as any).phone || (attach as any).userId || ''
-        await purchaseMember(
-          userKey,
+      const outTradeNo = params.out_trade_no || ''
+      const transactionId = params.transaction_id || ''
+
+      // 1. 更新订单为已支付
+      await updateOrderPaid(outTradeNo, transactionId, xmlBody)
+
+      // 2. 开通会员
+      if (attach && attach.memberLevel !== undefined && attach.userId) {
+        const days = getPlanDays(attach.memberLevel)
+        const times = getPlanTimes(attach.memberLevel)
+        await storePurchaseMember(
+          attach.userId,
           attach.memberLevel,
-          attach.planId || params.out_trade_no
+          attach.planId || outTradeNo,
+          getPlanName(attach.memberLevel),
+          days,
+          times
         )
-        console.log('[Pay] 会员开通成功', { orderId: params.out_trade_no, level: attach.memberLevel })
+        console.log('[Pay] 会员开通成功', { orderId: outTradeNo, level: attach.memberLevel })
       }
     }
 
@@ -152,12 +163,19 @@ export async function handlePayCallback(xmlBody: string): Promise<string> {
 // ============================================================
 function getPlanName(level: number): string {
   const names: Record<number, string> = {
-    0: '单次诊断',
-    1: '季VIP',
-    2: '半年SVIP',
-    3: '黑金年卡',
+    0: '单次诊断', 1: '季VIP', 2: '半年SVIP', 3: '黑金年卡',
   }
   return names[level] || '会员'
+}
+
+function getPlanDays(level: number): number {
+  const days: Record<number, number> = { 0: 0, 1: 90, 2: 180, 3: 365 }
+  return days[level] || 30
+}
+
+function getPlanTimes(level: number): number {
+  const times: Record<number, number> = { 0: 1, 1: 10, 2: 30, 3: 50 }
+  return times[level] || 1
 }
 
 function xmlEncode(obj: Record<string, string>): string {

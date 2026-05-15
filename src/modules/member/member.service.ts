@@ -1,6 +1,6 @@
 /**
  * 会员服务（MySQL版）
- * 所有会员操作均走 MySQL，替代 mockStore 的内存逻辑
+ * userId = openid（字符串）
  */
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -14,10 +14,10 @@ import {
 // 会员权益配置
 // ============================================================
 export const MEMBER_PLANS = {
-  0: { level: 0, name: '普通用户',    price: 39.8, priceDisplay: '¥39.8', unit: '次',  count: 1,  period: 0,  periodText: '永久有效', benefits: ['单次诊断', '基础报告'] },
-  1: { level: 1, name: '季VIP',      price: 198,  priceDisplay: '¥198',  unit: '季',  count: 10, period: 3,  periodText: '3个月',   benefits: ['10次诊断', '优先客服', '9折续费'] },
-  2: { level: 2, name: '半年SVIP',    price: 598,  priceDisplay: '¥598',  unit: '半年',count: 30, period: 6,  periodText: '6个月',   benefits: ['30次诊断', '精装报告', '专属顾问', '优先客服'] },
-  3: { level: 3, name: '黑金年卡',    price: 2988, priceDisplay: '¥2988', unit: '年',  count: 50, period: 12, periodText: '12个月',  benefits: ['50次诊断', '典藏报告', '顾问复核', '优先客服', '专属通道'] },
+  0: { level: 0, name: '普通用户',   price: 39.8,  priceDisplay: '¥39.8',  unit: '次',  count: 1,  period: 0,   periodText: '永久有效', benefits: ['单次诊断', '基础报告'] },
+  1: { level: 1, name: '季VIP',     price: 198,   priceDisplay: '¥198',   unit: '季',  count: 10, period: 3,   periodText: '3个月',    benefits: ['10次诊断', '优先客服', '9折续费'] },
+  2: { level: 2, name: '半年SVIP',  price: 598,   priceDisplay: '¥598',   unit: '半年',count: 30, period: 6,   periodText: '6个月',    benefits: ['30次诊断', '精装报告', '专属顾问', '优先客服'] },
+  3: { level: 3, name: '黑金年卡',  price: 2988,  priceDisplay: '¥2988',  unit: '年',  count: 50, period: 12,  periodText: '12个月',   benefits: ['50次诊断', '典藏报告', '顾问复核', '优先客服', '专属通道'] },
 } as const
 
 function calcExpireDate(level: number, fromDate: Date = new Date()): string {
@@ -48,7 +48,8 @@ export async function purchaseMember(
   const user = await findUserByPhone(phone)
   if (!user) return { success: false, error: '用户不存在' }
 
-  const userId = Number(user.id)
+  // userId = openid（字符串）
+  const userId = user.id as string
 
   // 计算新等级/次数/到期时间
   const current = await getMemberInfo(userId)
@@ -61,21 +62,20 @@ export async function purchaseMember(
     newCount = plan.count
     newExpire = calcExpireDate(memberLevel, now)
   } else if (current.level === memberLevel) {
-    newLevel = memberLevel
-    newCount = (current.remain_times || 0) + plan.count
-    const base = current.expire_time && new Date(current.expire_time) > now
-      ? new Date(current.expire_time) : now
+    newCount = (current.remainTimes || 0) + plan.count
+    const base = current.expireTime && new Date(current.expireTime) > now
+      ? new Date(current.expireTime) : now
     newExpire = calcExpireDate(memberLevel, base)
   } else {
     newLevel = Math.max(current.level, memberLevel)
-    newCount = (current.remain_times || 0) + plan.count
-    const base = current.expire_time && new Date(current.expire_time) > now
-      ? new Date(current.expire_time) : now
+    newCount = (current.remainTimes || 0) + plan.count
+    const base = current.expireTime && new Date(current.expireTime) > now
+      ? new Date(current.expireTime) : now
     newExpire = calcExpireDate(newLevel, base)
   }
 
-  // 写入 MySQL
-  await storePurchaseMember(userId, newLevel, planId, plan.name, plan.count, plan.period || 1)
+  const days = plan.period > 0 ? plan.period * 30 : 365
+  await storePurchaseMember(userId, newLevel, planId, plan.name, days, plan.count)
 
   return {
     success: true,
@@ -94,11 +94,10 @@ export async function deductMemberCount(phone: string): Promise<any> {
   const user = await findUserByPhone(phone)
   if (!user) return { success: false, error: '用户不存在' }
 
-  const userId = Number(user.id)
+  const userId = user.id as string
   const current = await getMemberInfo(userId)
 
-  // 无会员或已用完
-  if (!current || current.level === 0 || (current.remain_times || 0) <= 0) {
+  if (!current || current.level === 0 || (current.remainTimes || 0) <= 0) {
     return { success: false, error: '剩余次数不足，请先购买会员', remainCount: 0, memberLevel: current?.level || 0 }
   }
 
@@ -107,7 +106,7 @@ export async function deductMemberCount(phone: string): Promise<any> {
 
   return {
     success: true,
-    remainCount: updated?.remain_times || 0,
+    remainCount: updated?.remainTimes || 0,
     memberLevel: updated?.level || 0,
     deductCount: 1,
   }
@@ -120,12 +119,12 @@ export async function getMemberStatus(phone: string): Promise<any> {
   const user = await findUserByPhone(phone)
   if (!user) return { success: false, error: '用户不存在' }
 
-  const userId = Number(user.id)
+  const userId = user.id as string
   const info = await getMemberInfo(userId)
 
   const level = info?.level || 0
-  const remainTimes = info?.remain_times || (level === 0 ? 0 : 0)
-  const expireTime = info?.expire_time || null
+  const remainTimes = info?.remainTimes || (level === 0 ? 0 : 0)
+  const expireTime = info?.expireTime || null
   const plan = MEMBER_PLANS[level as keyof typeof MEMBER_PLANS]
 
   return {

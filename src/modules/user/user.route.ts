@@ -20,7 +20,6 @@ export async function userRoutes(fastify: FastifyInstance) {
       ? String(Math.floor(100000 + Math.random() * 900000))
       : '123456'
     setVerifyCode(phone, code)
-    console.log(`📱 验证码 ${phone} -> ${code}`)
     return {
       success: true,
       message: process.env.NODE_ENV === 'production' ? '验证码已发送' : '开发模式：验证码为 123456',
@@ -39,13 +38,9 @@ export async function userRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ success: false, error: '验证码错误或已失效' })
       }
     }
-    // 查找或创建用户
-    const user = await findOrCreateUser({ phone, nickname: `用户${phone.slice(-4)}` })
-    const token = fastify.jwt.sign({
-      id: user.id,
-      phone: user.phone,
-    })
-    const member = await getMemberInfo(user.id) || { remain_times: 0, expire_time: null }
+    const user = await findOrCreateUser({ phone, nickname: `用户${phone.slice(-4)}`, registerSource: 'phone' })
+    const token = fastify.jwt.sign({ id: user.id, phone: user.phone })
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null }
     return {
       success: true,
       token,
@@ -53,9 +48,10 @@ export async function userRoutes(fastify: FastifyInstance) {
         id: user.id,
         phone: user.phone,
         nickname: user.nickname,
+        registerSource: user.registerSource,
         memberLevel: member.level || 0,
-        remainCount: member.remain_times,
-        expireDate: member.expire_time,
+        remainCount: member.remainTimes || 0,
+        expireDate: member.expireTime,
       },
     }
   })
@@ -69,9 +65,9 @@ export async function userRoutes(fastify: FastifyInstance) {
     if (password !== 'qxt123456') {
       return reply.status(401).send({ success: false, error: '密码错误' })
     }
-    const user = await findOrCreateUser({ phone })
+    const user = await findOrCreateUser({ phone, registerSource: 'phone' })
     const token = fastify.jwt.sign({ id: user.id, phone: user.phone })
-    const member = await getMemberInfo(user.id) || { remain_times: 0, expire_time: null }
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null }
     return {
       success: true,
       token,
@@ -80,8 +76,8 @@ export async function userRoutes(fastify: FastifyInstance) {
         phone: user.phone,
         nickname: user.nickname,
         memberLevel: member.level || 0,
-        remainCount: member.remain_times,
-        expireDate: member.expire_time,
+        remainCount: member.remainTimes || 0,
+        expireDate: member.expireTime,
       },
     }
   })
@@ -91,18 +87,19 @@ export async function userRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate],
   }, async (request: any, reply) => {
     const { id } = request.user
-    const user = await findUserByPhone(id) // id 就是 phone（jwt payload）
+    const user = await findUserByPhone(id)
     if (!user) return reply.status(404).send({ success: false, error: '用户不存在' })
-    const member = await getMemberInfo(user.id) || { level: 0, remain_times: 0, expire_time: null }
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null }
     return {
       success: true,
       user: {
         id: user.id,
         phone: user.phone,
         nickname: user.nickname,
-        memberLevel: member.level,
-        remainCount: member.remain_times,
-        expireDate: member.expire_time,
+        registerSource: user.registerSource,
+        memberLevel: member.level || 0,
+        remainCount: member.remainTimes || 0,
+        expireDate: member.expireTime,
       },
     }
   })
@@ -122,20 +119,20 @@ export async function userRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // 微信一键登录（生产需用 code 换真实 openid）
+  // 微信一键登录
   fastify.post('/wx-login', async (request, reply) => {
     const { code, nickname, avatar, gender } = request.body as {
       code?: string; nickname?: string; avatar?: string; gender?: number
     }
-    // Mock模式：直接用 nickname 创建用户
-    // 生产模式：需调微信 api 换 openid
+    // Mock: 直接用 nickname 生成 openid
     const openid = `wx_${nickname || 'guest'}_${Date.now()}`
     const user = await findOrCreateUser({
       openid,
       nickname: nickname || '微信用户',
+      registerSource: 'wechat',
     })
     const token = fastify.jwt.sign({ id: user.id, phone: user.phone })
-    const member = await getMemberInfo(user.id) || { level: 0, remain_times: 0, expire_time: null }
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null }
     return {
       success: true,
       token,
@@ -144,8 +141,8 @@ export async function userRoutes(fastify: FastifyInstance) {
         phone: user.phone,
         nickname: user.nickname,
         memberLevel: member.level || 0,
-        remainCount: member.remain_times,
-        expireDate: member.expire_time,
+        remainCount: member.remainTimes || 0,
+        expireDate: member.expireTime,
       },
     }
   })
@@ -160,7 +157,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     if (!user) return reply.status(404).send({ success: false, error: '用户不存在' })
 
     const PLAN: Record<number, { name: string; days: number; times: number }> = {
-      1: { name: '季VIP', days: 90, times: 10 },
+      1: { name: '季VIP',     days: 90,  times: 10 },
       2: { name: '半年SVIP', days: 180, times: 30 },
       3: { name: '黑金年卡', days: 365, times: 50 },
     }
