@@ -9,6 +9,9 @@ RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
     --no-audit --no-fund --prefer-offline
 
 # 拷贝所有代码（包含 src/ 和已编译的 dist/）
+# 分两步：先复制一个文件并修改权限，再复制其余文件——强制让 CloudBuild 刷新整个层
+COPY package.json ./
+RUN chmod 644 package.json
 COPY . .
 
 # 编译 TypeScript → 生成 dist/index.js（esbuild，无类型检查，秒级完成）
