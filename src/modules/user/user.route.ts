@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import {
   findOrCreateUser,
   findUserByPhone,
+  findUserByOpenid,
   getMemberInfo,
   consumeVerifyCode,
   setVerifyCode,
@@ -87,7 +88,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate],
   }, async (request: any, reply) => {
     const { id } = request.user
-    const user = await findUserByPhone(id)
+    const user = await findUserByOpenid(id) || await findUserByPhone(id)
     if (!user) return reply.status(404).send({ success: false, error: '用户不存在' })
     const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null }
     return {

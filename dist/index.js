@@ -5022,7 +5022,7 @@ async function userRoutes(fastify) {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
     const { id } = request.user;
-    const user = await findUserByPhone(id);
+    const user = await findUserByOpenid(id) || await findUserByPhone(id);
     if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
     const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
