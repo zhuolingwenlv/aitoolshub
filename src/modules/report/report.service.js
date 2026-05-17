@@ -15,7 +15,7 @@ import { LAW_LIBRARY, DEFAULT_LAWS } from '../../data/law-library.js';
 import { PROCESS_NODES, STATUS_STAGE_MAP, getProcessPath } from '../../data/process-library.js';
 import { getStats } from '../../data/statistics-database.js';
 import { EVIDENCE_ITEMS } from '../../data/evidence-definitions.js';
-import { generateAIInsights, isLLMAvailable, getLLMLastError } from './llm.service.js';
+import { buildReportFromTemplate } from '../../data/report-templates.js';
 
 // 预构建 EVIDENCE_ITEMS_MAP（避免 import 时机问题）
 const EVIDENCE_ITEMS_MAP = Object.fromEntries(EVIDENCE_ITEMS.map(e => [e.id, e]));
@@ -663,41 +663,34 @@ function buildModule8() {
   };
 }
 
-// ==================== 主入口 ====================
+// ==================== 核心报告生成（纯模板，零AI）====================
 export async function generateReport({ scene, subType, amount, focus = [], status, evidence = [], memberLevel = 0, memo = '' }) {
-  const focusKeys = Array.isArray(focus) ? focus : [focus];
   const reportId = generateReportId();
 
-  // 纯本地模板生成——不用AI，100%可控、零延迟、零成本
-  // 8个模块（按产品规格顺序）
-  const m1 = buildModule1({ scene, amount, focusKeys, status, evidence, memberLevel });
-  const m2 = buildModule2({ scene, evidence, memberLevel });
-  const m3 = buildModule6({ scene, status, focusKeys, memo, evidence }); // 时间轴
-  const m4 = buildModule3({ scene });                                      // 法条索引
-  const m5 = buildModule4({ scene, status, focusKeys, amount, memberLevel }); // 维权流程
-  const m6 = buildModule7({ scene, focusKeys, evidence, memberLevel });  // 对方抗辩
-  const m7 = buildModule5({ scene, memberLevel });                        // 数据参考
-  const m8 = buildModule8();                                              // 声明
-  const m9 = buildModule9({ scene, evidence, focusKeys, amount });
-  const m10 = buildModule10({ scene, status, memberLevel });
-  const m11 = buildModule11({ scene, status, memberLevel });
+  // 16场景模板库——零大模型，10毫秒生成，100%可控
+  var tmpl = buildReportFromTemplate({
+    scene: scene || subType,
+    amount: amount || '待确认',
+    status: status || '尚未尝试',
+    focus: Array.isArray(focus) ? focus : [focus],
+    memo: memo || '',
+    evidence: evidence || [],
+    memberLevel: memberLevel || 0,
+  });
 
-  // 普通用户：全部11个模块锁定
-  const isLocked = memberLevel === 0;
-  const lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
+  var isLocked = memberLevel === 0;
+  var lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
 
   return {
     reportId,
-    reportTime: new Date().toLocaleString('zh-CN', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit',
-    }),
+    reportTime: new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
     memberLevel,
     locked: isLocked,
     lockModules,
     aiGenerated: false,
     _llmError: null,
-    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11,
+    m1: tmpl.m1, m2: tmpl.m2, m3: tmpl.m3, m4: tmpl.m4, m5: tmpl.m5,
+    m6: tmpl.m6, m7: tmpl.m7, m8: tmpl.m8, m9: tmpl.m9, m10: tmpl.m10, m11: tmpl.m11,
   };
 }
 
