@@ -97,19 +97,29 @@ async function ensureTables() {
   `);
   await p.query(`
     CREATE TABLE IF NOT EXISTS drafts (
-      report_id   VARCHAR(36)  PRIMARY KEY,
-      user_id     VARCHAR(64)  NOT NULL,
-      scene       VARCHAR(10)  DEFAULT NULL,
-      focus       JSON         DEFAULT NULL,
-      evidence    JSON         DEFAULT NULL,
-      report_data JSON         DEFAULT NULL,
-      is_locked   TINYINT(1)   DEFAULT 0,
-      order_id    VARCHAR(36)  DEFAULT NULL,
-      is_deleted  TINYINT(1)   DEFAULT 0,
-      created_at  TIMESTAMP    DEFAULT 0,
-      updated_at  TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
+      report_id      VARCHAR(36)  PRIMARY KEY,
+      user_id        VARCHAR(64)  NOT NULL,
+      scene          VARCHAR(10)  DEFAULT NULL,
+      focus          JSON         DEFAULT NULL,
+      evidence       JSON         DEFAULT NULL,
+      report_data    JSON         DEFAULT NULL,
+      is_locked      TINYINT(1)   DEFAULT 0,
+      gen_status     TINYINT(1)   DEFAULT 0,
+      report_version VARCHAR(10)  DEFAULT 'blur',
+      order_id       VARCHAR(36)  DEFAULT NULL,
+      is_deleted     TINYINT(1)   DEFAULT 0,
+      created_at     TIMESTAMP    DEFAULT 0,
+      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `);
+  try {
+    await p.query(`ALTER TABLE drafts ADD COLUMN gen_status TINYINT(1) DEFAULT 0 AFTER is_locked`);
+  } catch (e) {
+  }
+  try {
+    await p.query(`ALTER TABLE drafts ADD COLUMN report_version VARCHAR(10) DEFAULT 'blur' AFTER gen_status`);
+  } catch (e) {
+  }
   await p.query(`
     CREATE TABLE IF NOT EXISTS orders (
       order_id        VARCHAR(36)  PRIMARY KEY,
@@ -253,6 +263,8 @@ async function saveReport(reportId, data) {
     memberLevel = 0,
     reportData = null,
     isLocked = true,
+    genStatus = 0,
+    reportVersion = "blur",
     orderId = ""
   } = data;
   const focusJson = JSON.stringify(focus);
@@ -298,6 +310,14 @@ async function saveReport(reportId, data) {
       sets.push("is_locked=?");
       vals.push(isLocked ? 1 : 0);
     }
+    if (data.genStatus !== void 0) {
+      sets.push("gen_status=?");
+      vals.push(genStatus);
+    }
+    if (data.reportVersion !== void 0) {
+      sets.push("report_version=?");
+      vals.push(reportVersion);
+    }
     if (data.orderId !== void 0) {
       sets.push("order_id=?");
       vals.push(orderId);
@@ -310,8 +330,8 @@ async function saveReport(reportId, data) {
   } else {
     await insert(
       `INSERT INTO drafts (report_id, user_id, scene, sub_type, amount, focus, status, evidence,
-       member_level, report_data, is_locked, order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+       member_level, report_data, is_locked, gen_status, report_version, order_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         reportId,
         userId,
@@ -324,6 +344,8 @@ async function saveReport(reportId, data) {
         memberLevel,
         reportDataJson,
         isLocked ? 1 : 0,
+        genStatus,
+        reportVersion,
         orderId
       ]
     );
@@ -362,6 +384,8 @@ function parseDraft(row) {
     memberLevel: row.member_level,
     reportData: row.report_data ? JSON.parse(row.report_data) : null,
     isLocked: row.is_locked === 1,
+    genStatus: row.gen_status || 0,
+    reportVersion: row.report_version || "blur",
     orderId: row.order_id,
     isDeleted: row.is_deleted === 1,
     createdAt: row.created_at,
@@ -4440,6 +4464,36 @@ async function reportRoutes(fastify) {
         error: `\u5185\u5BB9\u5305\u542B\u654F\u611F\u8BCD\u6C47\uFF0C\u8BF7\u4FEE\u6539\u540E\u91CD\u8BD5\uFF1A${memoScan.found.join("\u3001")}`
       });
     }
+    let userId = "anonymous";
+    try {
+      const token = request.headers.authorization?.replace("Bearer ", "");
+      if (token) {
+        const decoded = fastify.jwt.verify(token);
+        userId = decoded.phone || decoded.id || "anonymous";
+      }
+    } catch (_) {
+    }
+    const reportId = "R" + Date.now() + Math.random().toString(36).slice(2, 10);
+    try {
+      await saveReport(reportId, {
+        userId,
+        scene,
+        subType: subType || "",
+        amount: amount || "\u5F85\u786E\u8BA4",
+        focus: Array.isArray(focus) ? focus : [focus].filter(Boolean),
+        status,
+        evidence,
+        memberLevel,
+        reportData: null,
+        isLocked: memberLevel === 0,
+        genStatus: 1,
+        // 生成中
+        reportVersion: "blur",
+        orderId: ""
+      });
+    } catch (e) {
+      console.error("[Report] \u521D\u59CB\u5316\u5199\u5165\u5931\u8D25:", e);
+    }
     try {
       const report = generateReport({
         scene,
@@ -4451,32 +4505,20 @@ async function reportRoutes(fastify) {
         memberLevel,
         memo
       });
-      let userId = "anonymous";
+      await saveReport(reportId, {
+        userId,
+        reportData: report,
+        genStatus: 2,
+        reportVersion: memberLevel > 0 ? "hd" : "blur"
+      });
+      return { success: true, reportId, report: filterByVersion(report, memberLevel === 0) };
+    } catch (err) {
       try {
-        const token = request.headers.authorization?.replace("Bearer ", "");
-        if (token) {
-          const decoded = fastify.jwt.verify(token);
-          userId = decoded.phone || decoded.id || "anonymous";
-        }
+        await saveReport(reportId, { genStatus: 3 });
       } catch (_) {
       }
-      await saveReport(report.reportId, {
-        userId,
-        scene,
-        subType: subType || "",
-        amount: amount || "\u5F85\u786E\u8BA4",
-        focus: Array.isArray(focus) ? focus : [focus].filter(Boolean),
-        status,
-        evidence,
-        memberLevel,
-        reportData: report,
-        isLocked: memberLevel === 0,
-        orderId: ""
-      });
-      return { success: true, report };
-    } catch (err) {
       console.error("\u274C \u62A5\u544A\u751F\u6210\u5931\u8D25:", err);
-      return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25" });
+      return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25", reportId });
     }
   });
   fastify.get("/:reportId", async (request, reply) => {
@@ -4484,19 +4526,35 @@ async function reportRoutes(fastify) {
     if (!reportId) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u62A5\u544AID" });
     }
+    let userLevel = 0;
+    try {
+      const token = request.headers.authorization?.replace("Bearer ", "");
+      if (token) {
+        const decoded = fastify.jwt.verify(token);
+        const { findUserByOpenid: findUserByOpenid2 } = await Promise.resolve().then(() => (init_store(), store_exports));
+        const user = await findUserByOpenid2(decoded.openid || decoded.phone || "");
+        userLevel = user?.memberLevel || 0;
+      }
+    } catch (_) {
+    }
     try {
       const draft = await getReport(reportId);
       if (!draft) {
         return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
       }
+      const isBlur = draft.isLocked && userLevel === 0;
+      const reportData = draft.reportData || {};
+      const filtered = isBlur ? filterBlur(reportData) : reportData;
       return {
         success: true,
         report: {
           reportId: draft.reportId,
           scene: draft.scene,
-          ...draft.reportData,
+          ...filtered,
           locked: draft.isLocked,
-          isLocked: draft.isLocked
+          isLocked: draft.isLocked,
+          genStatus: draft.genStatus,
+          reportVersion: isBlur ? "blur" : "hd"
         }
       };
     } catch (err) {
@@ -4519,6 +4577,8 @@ async function reportRoutes(fastify) {
           amount: r.amount,
           status: r.status,
           isLocked: r.isLocked,
+          genStatus: r.genStatus,
+          reportVersion: r.reportVersion,
           orderId: r.orderId,
           createdAt: r.createdAt,
           // 轻量预览（不全量返回）
@@ -4590,6 +4650,27 @@ async function reportRoutes(fastify) {
     }
     return { success: true, ...status };
   });
+}
+function filterByVersion(report, isBlur) {
+  if (!isBlur) return report;
+  return filterBlur(report);
+}
+function filterBlur(report) {
+  if (!report) return report;
+  const r = JSON.parse(JSON.stringify(report));
+  if (r.m7 && r.m7.claimAmount) r.m7.claimAmount = "***\uFF08\u4ED8\u8D39\u89E3\u9501\uFF09";
+  if (r.m2 && r.m2.evidenceList) {
+    r.m2.evidenceList = r.m2.evidenceList.map(function(e) {
+      return { ...e, amount: e.amount ? "***" : "", detail: e.detail ? "\u3010\u4ED8\u8D39\u89E3\u9501\u67E5\u770B\u8BE6\u60C5\u3011" : "" };
+    });
+  }
+  if (r.m8 && r.m8.timeline) {
+    r.m8.timeline = r.m8.timeline.map(function(t) {
+      return { ...t, date: t.date ? "****-**-**" : "", detail: "\u3010\u4ED8\u8D39\u89E3\u9501\u3011" };
+    });
+  }
+  r._watermark = "\u3010\u6A21\u7CCA\u9884\u89C8\u7248 \xB7 \u4ED8\u8D39\u89E3\u9501\u9AD8\u6E05\u5B8C\u6574\u62A5\u544A\u3011";
+  return r;
 }
 
 // src/modules/user/user.route.ts

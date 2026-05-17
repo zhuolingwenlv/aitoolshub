@@ -88,6 +88,8 @@ export async function saveReport(reportId: string, data: any) {
     memberLevel = 0,
     reportData = null,
     isLocked = true,
+    genStatus = 0,
+    reportVersion = 'blur',
     orderId = '',
   } = data
 
@@ -109,6 +111,8 @@ export async function saveReport(reportId: string, data: any) {
     if (data.memberLevel !== undefined) { sets.push('member_level=?'); vals.push(memberLevel) }
     if (data.reportData !== undefined) { sets.push('report_data=?'); vals.push(reportDataJson) }
     if (data.isLocked !== undefined) { sets.push('is_locked=?'); vals.push(isLocked ? 1 : 0) }
+    if (data.genStatus !== undefined) { sets.push('gen_status=?'); vals.push(genStatus) }
+    if (data.reportVersion !== undefined) { sets.push('report_version=?'); vals.push(reportVersion) }
     if (data.orderId !== undefined) { sets.push('order_id=?'); vals.push(orderId) }
     if (sets.length > 0) {
       sets.push('updated_at=NOW()')
@@ -118,10 +122,10 @@ export async function saveReport(reportId: string, data: any) {
   } else {
     await insert(
       `INSERT INTO drafts (report_id, user_id, scene, sub_type, amount, focus, status, evidence,
-       member_level, report_data, is_locked, order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+       member_level, report_data, is_locked, gen_status, report_version, order_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [reportId, userId, scene, subType, amount, focusJson, status, evidenceJson,
-       memberLevel, reportDataJson, isLocked ? 1 : 0, orderId]
+       memberLevel, reportDataJson, isLocked ? 1 : 0, genStatus, reportVersion, orderId]
     )
   }
 }
@@ -162,6 +166,8 @@ function parseDraft(row: any) {
     memberLevel: row.member_level,
     reportData: row.report_data ? JSON.parse(row.report_data) : null,
     isLocked: row.is_locked === 1,
+    genStatus: row.gen_status || 0,
+    reportVersion: row.report_version || 'blur',
     orderId: row.order_id,
     isDeleted: row.is_deleted === 1,
     createdAt: row.created_at,

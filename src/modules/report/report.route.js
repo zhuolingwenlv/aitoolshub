@@ -25,6 +25,39 @@ export async function reportRoutes(fastify) {
       })
     }
 
+    // 提取userId
+    let userId = 'anonymous'
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (token) {
+        const decoded = fastify.jwt.verify(token)
+        userId = decoded.phone || decoded.id || 'anonymous'
+      }
+    } catch (_) { /* 未登录允许生成 */ }
+
+    const reportId = 'R' + Date.now() + Math.random().toString(36).slice(2, 10)
+
+    // P1-1：标记【生成中】(genStatus=1)，先落库锁定
+    try {
+      await saveReport(reportId, {
+        userId,
+        scene,
+        subType: subType || '',
+        amount: amount || '待确认',
+        focus: Array.isArray(focus) ? focus : [focus].filter(Boolean),
+        status,
+        evidence,
+        memberLevel,
+        reportData: null,
+        isLocked: memberLevel === 0,
+        genStatus: 1,    // 生成中
+        reportVersion: 'blur',
+        orderId: '',
+      })
+    } catch (e) {
+      console.error('[Report] 初始化写入失败:', e)
+    }
+
     try {
       const report = generateReport({
         scene,
@@ -37,39 +70,24 @@ export async function reportRoutes(fastify) {
         memo,
       })
 
-      // 提取userId（可选，未登录也行）
-      let userId = 'anonymous'
-      try {
-        const token = request.headers.authorization?.replace('Bearer ', '')
-        if (token) {
-          const decoded = fastify.jwt.verify(token)
-          userId = decoded.phone || decoded.id || 'anonymous'
-        }
-      } catch (_) { /* 未登录允许生成 */ }
-
-      // 保存到MySQL
-      await saveReport(report.reportId, {
+      // 标记【已完成】(genStatus=2)
+      await saveReport(reportId, {
         userId,
-        scene,
-        subType: subType || '',
-        amount: amount || '待确认',
-        focus: Array.isArray(focus) ? focus : [focus].filter(Boolean),
-        status,
-        evidence,
-        memberLevel,
         reportData: report,
-        isLocked: memberLevel === 0,
-        orderId: '',
+        genStatus: 2,
+        reportVersion: memberLevel > 0 ? 'hd' : 'blur',
       })
 
-      return { success: true, report }
+      return { success: true, reportId, report: filterByVersion(report, memberLevel === 0) }
     } catch (err) {
+      // 标记【生成失败】(genStatus=3)
+      try { await saveReport(reportId, { genStatus: 3 }) } catch(_) {}
       console.error('❌ 报告生成失败:', err)
-      return reply.status(500).send({ success: false, error: '报告生成失败' })
+      return reply.status(500).send({ success: false, error: '报告生成失败', reportId })
     }
   })
 
-  // 查询报告（GET /api/v1/report/:reportId）
+  // 查询报告（GET /api/v1/report/:reportId）—— 双版本鉴权
   fastify.get('/:reportId', async (request, reply) => {
     const { reportId } = request.params || {}
 
@@ -77,20 +95,38 @@ export async function reportRoutes(fastify) {
       return reply.status(400).send({ success: false, error: '缺少报告ID' })
     }
 
+    // 判断用户是否已付费（token中查会员等级）
+    let userLevel = 0
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (token) {
+        const decoded = fastify.jwt.verify(token)
+        const { findUserByOpenid } = await import('../../db/store.js')
+        const user = await findUserByOpenid(decoded.openid || decoded.phone || '')
+        userLevel = user?.memberLevel || 0
+      }
+    } catch (_) {}
+
     try {
       const draft = await getReportDb(reportId)
       if (!draft) {
         return reply.status(404).send({ success: false, error: '报告不存在' })
       }
 
+      const isBlur = draft.isLocked && userLevel === 0
+      const reportData = draft.reportData || {}
+      const filtered = isBlur ? filterBlur(reportData) : reportData
+
       return {
         success: true,
         report: {
           reportId: draft.reportId,
           scene: draft.scene,
-          ...draft.reportData,
+          ...filtered,
           locked: draft.isLocked,
           isLocked: draft.isLocked,
+          genStatus: draft.genStatus,
+          reportVersion: isBlur ? 'blur' : 'hd',
         },
       }
     } catch (err) {
@@ -115,6 +151,8 @@ export async function reportRoutes(fastify) {
           amount: r.amount,
           status: r.status,
           isLocked: r.isLocked,
+          genStatus: r.genStatus,
+          reportVersion: r.reportVersion,
           orderId: r.orderId,
           createdAt: r.createdAt,
           // 轻量预览（不全量返回）
@@ -203,4 +241,35 @@ export async function reportRoutes(fastify) {
 
     return { success: true, ...status }
   })
+}
+
+// ============ 双版本过滤（P1-2） ============
+
+// 生成时根据会员等级过滤返回内容
+function filterByVersion(report, isBlur) {
+  if (!isBlur) return report
+  return filterBlur(report)
+}
+
+// 模糊版：隐藏关键金额/时间/姓名，加水印提示
+function filterBlur(report) {
+  if (!report) return report
+  const r = JSON.parse(JSON.stringify(report)) // 深拷贝
+
+  // 隐藏金额
+  if (r.m7 && r.m7.claimAmount) r.m7.claimAmount = '***（付费解锁）'
+  if (r.m2 && r.m2.evidenceList) {
+    r.m2.evidenceList = r.m2.evidenceList.map(function(e) {
+      return { ...e, amount: e.amount ? '***' : '', detail: e.detail ? '【付费解锁查看详情】' : '' }
+    })
+  }
+  // 隐藏关键时间
+  if (r.m8 && r.m8.timeline) {
+    r.m8.timeline = r.m8.timeline.map(function(t) {
+      return { ...t, date: t.date ? '****-**-**' : '', detail: '【付费解锁】' }
+    })
+  }
+  // 加水印
+  r._watermark = '【模糊预览版 · 付费解锁高清完整报告】'
+  return r
 }

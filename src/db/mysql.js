@@ -105,19 +105,25 @@ export async function ensureTables() {
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS drafts (
-      report_id   VARCHAR(36)  PRIMARY KEY,
-      user_id     VARCHAR(64)  NOT NULL,
-      scene       VARCHAR(10)  DEFAULT NULL,
-      focus       JSON         DEFAULT NULL,
-      evidence    JSON         DEFAULT NULL,
-      report_data JSON         DEFAULT NULL,
-      is_locked   TINYINT(1)   DEFAULT 0,
-      order_id    VARCHAR(36)  DEFAULT NULL,
-      is_deleted  TINYINT(1)   DEFAULT 0,
-      created_at  TIMESTAMP    DEFAULT 0,
-      updated_at  TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
+      report_id      VARCHAR(36)  PRIMARY KEY,
+      user_id        VARCHAR(64)  NOT NULL,
+      scene          VARCHAR(10)  DEFAULT NULL,
+      focus          JSON         DEFAULT NULL,
+      evidence       JSON         DEFAULT NULL,
+      report_data    JSON         DEFAULT NULL,
+      is_locked      TINYINT(1)   DEFAULT 0,
+      gen_status     TINYINT(1)   DEFAULT 0,
+      report_version VARCHAR(10)  DEFAULT 'blur',
+      order_id       VARCHAR(36)  DEFAULT NULL,
+      is_deleted     TINYINT(1)   DEFAULT 0,
+      created_at     TIMESTAMP    DEFAULT 0,
+      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `)
+
+  // 兼容旧表：补加 gen_status 和 report_version 列
+  try { await p.query(`ALTER TABLE drafts ADD COLUMN gen_status TINYINT(1) DEFAULT 0 AFTER is_locked`) } catch(e) {}
+  try { await p.query(`ALTER TABLE drafts ADD COLUMN report_version VARCHAR(10) DEFAULT 'blur' AFTER gen_status`) } catch(e) {}
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS orders (
