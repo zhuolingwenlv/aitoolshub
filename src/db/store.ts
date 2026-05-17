@@ -523,8 +523,8 @@ export async function ensureTables() {
 
   // 种子商品数据（¥198电子书 + ¥299素材库）
   const seedGoods = [
-    [1, '消费者纠纷梳理与普法操作指南', 19800, 'ebook', '/images/shop-ebook.png', '', '14类纠纷场景梳理，280+页电子版汇编工具书'],
-    [2, '全行业永久工具素材库', 29900, 'material', '/images/shop-material.png', '', '全行业模板合集，可编辑可导出，终身更新权益'],
+    [1, '消费者纠纷梳理与普法操作指南', 16600, 'ebook', '/images/shop-ebook.png', '', '14类纠纷场景梳理，280+页电子版汇编工具书'],
+    [2, '全行业永久工具素材库', 26600, 'material', '/images/shop-material.png', '', '全行业模板合集，可编辑可导出，终身更新权益'],
   ]
   for (const [id, name, price, type, cover, url, desc] of seedGoods) {
     try {

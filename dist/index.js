@@ -687,8 +687,8 @@ async function ensureTables2() {
   }
   console.log("[MySQL] \u516B\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
   const seedGoods = [
-    [1, "\u6D88\u8D39\u8005\u7EA0\u7EB7\u68B3\u7406\u4E0E\u666E\u6CD5\u64CD\u4F5C\u6307\u5357", 19800, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u68B3\u7406\uFF0C280+\u9875\u7535\u5B50\u7248\u6C47\u7F16\u5DE5\u5177\u4E66"],
-    [2, "\u5168\u884C\u4E1A\u6C38\u4E45\u5DE5\u5177\u7D20\u6750\u5E93", 29900, "material", "/images/shop-material.png", "", "\u5168\u884C\u4E1A\u6A21\u677F\u5408\u96C6\uFF0C\u53EF\u7F16\u8F91\u53EF\u5BFC\u51FA\uFF0C\u7EC8\u8EAB\u66F4\u65B0\u6743\u76CA"]
+    [1, "\u6D88\u8D39\u8005\u7EA0\u7EB7\u68B3\u7406\u4E0E\u666E\u6CD5\u64CD\u4F5C\u6307\u5357", 16600, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u68B3\u7406\uFF0C280+\u9875\u7535\u5B50\u7248\u6C47\u7F16\u5DE5\u5177\u4E66"],
+    [2, "\u5168\u884C\u4E1A\u6C38\u4E45\u5DE5\u5177\u7D20\u6750\u5E93", 26600, "material", "/images/shop-material.png", "", "\u5168\u884C\u4E1A\u6A21\u677F\u5408\u96C6\uFF0C\u53EF\u7F16\u8F91\u53EF\u5BFC\u51FA\uFF0C\u7EC8\u8EAB\u66F4\u65B0\u6743\u76CA"]
   ];
   for (const [id, name, price, type, cover, url, desc] of seedGoods) {
     try {
@@ -5354,18 +5354,18 @@ async function memberRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u53C2\u6570" });
     }
     const planMap = {
-      "0": { level: 0, fee: 3980 },
-      "once": { level: 0, fee: 3980 },
-      "single": { level: 0, fee: 3980 },
-      "1": { level: 1, fee: 19800 },
-      "quarter": { level: 1, fee: 19800 },
-      "season": { level: 1, fee: 19800 },
-      "2": { level: 2, fee: 58800 },
-      "halfyear": { level: 2, fee: 58800 },
-      "svip": { level: 2, fee: 58800 },
-      "3": { level: 3, fee: 298800 },
-      "year": { level: 3, fee: 298800 },
-      "black": { level: 3, fee: 298800 }
+      "0": { level: 0, fee: 3680 },
+      "once": { level: 0, fee: 3680 },
+      "single": { level: 0, fee: 3680 },
+      "1": { level: 1, fee: 16800 },
+      "quarter": { level: 1, fee: 16800 },
+      "season": { level: 1, fee: 16800 },
+      "2": { level: 2, fee: 56600 },
+      "halfyear": { level: 2, fee: 56600 },
+      "svip": { level: 2, fee: 56600 },
+      "3": { level: 3, fee: 266600 },
+      "year": { level: 3, fee: 266600 },
+      "black": { level: 3, fee: 266600 }
     };
     const plan = planMap[planId] || planMap["0"];
     try {
