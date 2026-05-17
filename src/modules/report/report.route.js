@@ -62,7 +62,7 @@ export async function reportRoutes(fastify) {
     }
 
     try {
-      const report = generateReport({
+      const report = await generateReport({
         scene,
         subType: subType || '',
         amount: amount || '待确认',

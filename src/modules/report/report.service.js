@@ -15,6 +15,7 @@ import { LAW_LIBRARY, DEFAULT_LAWS } from '../../data/law-library.js';
 import { PROCESS_NODES, STATUS_STAGE_MAP, getProcessPath } from '../../data/process-library.js';
 import { getStats } from '../../data/statistics-database.js';
 import { EVIDENCE_ITEMS } from '../../data/evidence-definitions.js';
+import { generateAIInsights, isLLMAvailable } from './llm.service.js';
 
 // 预构建 EVIDENCE_ITEMS_MAP（避免 import 时机问题）
 const EVIDENCE_ITEMS_MAP = Object.fromEntries(EVIDENCE_ITEMS.map(e => [e.id, e]));
@@ -650,10 +651,33 @@ function buildModule8() {
 }
 
 // ==================== 主入口 ====================
-export function generateReport({ scene, amount, focus = [], status, evidence = [], memberLevel = 0, memo = '' }) {
+export async function generateReport({ scene, subType, amount, focus = [], status, evidence = [], memberLevel = 0, memo = '' }) {
   const focusKeys = Array.isArray(focus) ? focus : [focus];
-
   const reportId = generateReportId();
+
+  // ── AI增强：调用LLM获取智能分析 ──
+  let aiInsights = null;
+  if (isLLMAvailable() && memo) {
+    try {
+      const sceneMap = {
+        education: '教育培训', medical: '医疗美容', labor: '劳动关系', housing: '租房纠纷',
+        consumer: '消费纠纷', beauty: '美业服务', franchise: '加盟纠纷', debt: '民间借贷',
+        telecom: '电信诈骗', investment: '投资理财', jade: '玉石文玩', marriage: '婚恋纠纷',
+        esoteric: '玄学命理', online: '网购纠纷', service: '服务合同', other: '其他纠纷',
+        '01': '网购纠纷', '02': '线下消费', '03': '劳动关系', '04': '租房纠纷',
+        '05': '教育培训', '06': '医疗美容', '07': '二手车', '08': '旅游纠纷',
+        '09': '合同纠纷', '10': '房产纠纷', '11': '投资理财', '12': '民间借贷',
+        '13': '物流快递', '14': '票务纠纷', '15': '情感纠纷', '16': '其他'
+      };
+      const sceneLabel = sceneMap[scene] || sceneMap[subType] || scene || '未指定';
+      aiInsights = await generateAIInsights({
+        scene, sceneLabel, subType, amount,
+        focus: focusKeys, status, evidence, memo
+      });
+    } catch (e) {
+      console.error('[Report] AI分析失败，降级到模板:', e.message);
+    }
+  }
 
   // 8个模块（按产品规格顺序）
   // m1=纠纷概况 m2=证据分析 m3=时间线 m4=法条索引 m5=维权流程
@@ -678,6 +702,29 @@ export function generateReport({ scene, amount, focus = [], status, evidence = [
   const isLocked = memberLevel === 0;
   const lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
 
+  // AI分析注入（覆盖模板中的静态内容）
+  if (aiInsights) {
+    // m1: 注入AI争议分析
+    m1.aiAnalysis = {
+      disputeCore: aiInsights.disputeCore || '',
+      keyIssues: aiInsights.keyIssues || [],
+      analysis: aiInsights.analysis || '',
+    };
+    // m5: 注入AI策略建议
+    m5.aiStrategy = {
+      strategy: aiInsights.strategy || '',
+      nextSteps: aiInsights.nextSteps || [],
+      tips: aiInsights.tips || '',
+    };
+    // m9: 注入AI风险评估
+    m9.aiRisk = {
+      riskLevel: (aiInsights.riskAssessment && aiInsights.riskAssessment.level) || '中',
+      riskPoints: (aiInsights.riskAssessment && aiInsights.riskAssessment.points) || [],
+      strengths: aiInsights.strengths || [],
+      weaknesses: aiInsights.weaknesses || [],
+    };
+  }
+
   return {
     reportId,
     reportTime: new Date().toLocaleString('zh-CN', {
@@ -687,6 +734,7 @@ export function generateReport({ scene, amount, focus = [], status, evidence = [
     memberLevel,
     locked: isLocked,
     lockModules,
+    aiGenerated: !!aiInsights,
     m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11,
   };
 }
