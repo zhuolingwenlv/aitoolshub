@@ -694,6 +694,280 @@ var init_store = __esm({
   }
 });
 
+// src/db/redis.js
+import Redis from "ioredis";
+function getConfig2() {
+  return {
+    host: process.env.REDIS_HOST || "127.0.0.1",
+    port: Number(process.env.REDIS_PORT || "6379"),
+    password: process.env.REDIS_PASSWORD || "",
+    db: Number(process.env.REDIS_DB || "0")
+  };
+}
+async function initRedis() {
+  const cfg = getConfig2();
+  try {
+    redis = new Redis({
+      host: cfg.host,
+      port: cfg.port,
+      password: cfg.password || void 0,
+      db: cfg.db,
+      connectTimeout: 5e3,
+      maxRetriesPerRequest: 3,
+      retryStrategy(times) {
+        if (times > 3) {
+          console.warn("[Redis] \u8FDE\u63A5\u5931\u8D25\uFF0C\u964D\u7EA7\u8FD0\u884C\uFF08\u65E0Redis\u6A21\u5F0F\uFF09");
+          return null;
+        }
+        return Math.min(times * 500, 2e3);
+      },
+      lazyConnect: true
+    });
+    await redis.connect();
+    await redis.ping();
+    redisAvailable = true;
+    console.log("[Redis] \u2705 \u8FDE\u63A5\u6210\u529F:", cfg.host + ":" + cfg.port);
+    return redis;
+  } catch (e) {
+    redisAvailable = false;
+    console.warn("[Redis] \u8FDE\u63A5\u5931\u8D25\uFF0C\u964D\u7EA7\u8FD0\u884C:", String(e));
+    redis = null;
+    return null;
+  }
+}
+function isRedisAvailable() {
+  return redisAvailable && redis !== null;
+}
+async function acquirePayLock(userId, planId, ttlSeconds = 120) {
+  if (!isRedisAvailable()) {
+    if (!globalThis._payLocks) globalThis._payLocks = {};
+    const key2 = userId + ":" + planId;
+    if (globalThis._payLocks[key2]) return false;
+    globalThis._payLocks[key2] = true;
+    setTimeout(() => {
+      delete globalThis._payLocks[key2];
+    }, ttlSeconds * 1e3);
+    return true;
+  }
+  const key = "qxt:paylock:" + userId + ":" + planId;
+  const result = await redis.set(key, "1", "EX", ttlSeconds, "NX");
+  return result === "OK";
+}
+async function releasePayLock(userId, planId) {
+  const key = "qxt:paylock:" + userId + ":" + planId;
+  if (isRedisAvailable()) {
+    await redis.del(key);
+  } else {
+    if (globalThis._payLocks) delete globalThis._payLocks[userId + ":" + planId];
+  }
+}
+async function checkRateLimit(userId, maxRequests = 30, windowSeconds = 60) {
+  if (!isRedisAvailable()) return true;
+  const now = Date.now();
+  const key = "qxt:ratelimit:" + userId;
+  const windowStart = now - windowSeconds * 1e3;
+  await redis.zremrangebyscore(key, 0, windowStart);
+  const count = await redis.zcard(key);
+  if (count >= maxRequests) return false;
+  await redis.zadd(key, now, now + ":" + Math.random().toString(36).slice(2));
+  await redis.expire(key, windowSeconds + 10);
+  return true;
+}
+var redis, redisAvailable;
+var init_redis = __esm({
+  "src/db/redis.js"() {
+    redis = null;
+    redisAvailable = false;
+  }
+});
+
+// src/modules/pay/pay.service.ts
+var pay_service_exports = {};
+__export(pay_service_exports, {
+  handlePayCallback: () => handlePayCallback,
+  unifiedOrder: () => unifiedOrder
+});
+import * as crypto2 from "crypto";
+import { v4 as uuidv43 } from "uuid";
+function signParams(params) {
+  const sorted = Object.keys(params).filter((k) => params[k] !== "" && params[k] !== void 0 && params[k] !== null).sort().map((k) => `${k}=${params[k]}`).join("&");
+  const signStr = sorted + "&key=" + API_KEY;
+  return crypto2.createHash("md5").update(signStr, "utf8").digest("hex").toUpperCase();
+}
+async function unifiedOrder(params) {
+  const { openid, planId, memberLevel, totalFee, userId } = params;
+  const orderId = "O" + Date.now() + uuidv43().replace(/-/g, "").slice(0, 12).toUpperCase();
+  const lockAcquired = await acquirePayLock(userId, String(memberLevel), 120);
+  if (!lockAcquired) {
+    return { success: false, error: "\u8BF7\u52FF\u91CD\u590D\u63D0\u4EA4\uFF0C\u60A8\u7684\u4E0A\u4E00\u7B14\u8BA2\u5355\u4ECD\u5728\u5904\u7406\u4E2D" };
+  }
+  const { query: query2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
+  const recent = await query2(
+    "SELECT 1 FROM orders WHERE user_id = ? AND plan_level = ? AND pay_status IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1",
+    [userId, memberLevel, "pending", "success"]
+  );
+  if (recent.length > 0) {
+    return { success: false, error: "\u60A8\u5DF2\u6709\u4E00\u7B14\u8FDB\u884C\u4E2D\u7684\u8BA2\u5355\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5" };
+  }
+  try {
+    await createOrder(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee);
+    console.log("[Pay] \u8BA2\u5355\u5DF2\u521B\u5EFA:", orderId);
+  } catch (e) {
+    console.error("[Pay] \u521B\u5EFA\u8BA2\u5355\u5931\u8D25:", e.message);
+    return { success: false, error: "\u4E0B\u5355\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" };
+  }
+  const timeStart = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const timeExpire = new Date(Date.now() + 30 * 60 * 1e3).toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const nonceStr = uuidv43().replace(/-/g, "");
+  const postData = {
+    appid: APP_ID,
+    mch_id: MCH_ID,
+    nonce_str: nonceStr,
+    body: "\u542F\u4FE1\u901A\u4F1A\u5458-" + getPlanName(memberLevel),
+    out_trade_no: orderId,
+    total_fee: String(totalFee),
+    spbill_create_ip: "127.0.0.1",
+    notify_url: "https://qixintong-prod-254473-7-1429024094.sh.run.tcloudbase.com/api/v1/pay/callback",
+    trade_type: "JSAPI",
+    openid,
+    time_start: timeStart,
+    time_expire: timeExpire,
+    attach: JSON.stringify({ planId, memberLevel, userId })
+  };
+  postData.sign = signParams(postData);
+  const xmlBody = xmlEncode(postData);
+  try {
+    const resp = await fetch("https://api.mch.weixin.qq.com/pay/unifiedorder", {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body: xmlBody
+    });
+    const xmlText = await resp.text();
+    const result = xmlDecode(xmlText);
+    if (result.return_code === "SUCCESS" && result.result_code === "SUCCESS") {
+      const signParams2 = {
+        appId: APP_ID,
+        timeStamp: String(Math.floor(Date.now() / 1e3)),
+        nonceStr,
+        package: "prepay_id=" + result.prepay_id,
+        signType: "MD5"
+      };
+      signParams2.paySign = signParams(signParams2);
+      return {
+        success: true,
+        data: {
+          orderId,
+          prepayId: result.prepay_id,
+          jsapiParams: signParams2
+        }
+      };
+    } else {
+      return { success: false, error: result.err_code_des || result.return_msg || "\u4E0B\u5355\u5931\u8D25" };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+async function handlePayCallback(xmlBody) {
+  try {
+    const params = xmlDecode(xmlBody);
+    if (params.return_code !== "SUCCESS") {
+      return xmlEncode({ return_code: "FAIL", return_msg: "\u7B7E\u540D\u5931\u8D25" });
+    }
+    const { sign, ...rest } = params;
+    const expectedSign = signParams(rest);
+    if (sign !== expectedSign) {
+      console.error("[Pay] \u7B7E\u540D\u9A8C\u8BC1\u5931\u8D25", { expected: expectedSign, got: sign });
+      return xmlEncode({ return_code: "FAIL", return_msg: "\u7B7E\u540D\u5931\u8D25" });
+    }
+    let attach = null;
+    try {
+      attach = JSON.parse(params.attach);
+    } catch {
+      attach = null;
+    }
+    if (params.result_code === "SUCCESS") {
+      const outTradeNo = params.out_trade_no || "";
+      const transactionId = params.transaction_id || "";
+      await updateOrderPaid(outTradeNo, transactionId, xmlBody);
+      if (attach && attach.memberLevel !== void 0 && attach.userId) {
+        if (attach.memberLevel === 0 && attach.reportId) {
+          const { saveReport: saveReport2 } = await Promise.resolve().then(() => (init_store(), store_exports));
+          await saveReport2(attach.reportId, {
+            userId: attach.userId,
+            isLocked: false,
+            orderId: outTradeNo
+          });
+          console.log("[Pay] \u5355\u6B21\u62A5\u544A\u89E3\u9501\u6210\u529F", { reportId: attach.reportId });
+        } else if (attach.memberLevel === 0 && attach.goodsId) {
+          const { updateMallOrderPaid: updateMallOrderPaid3 } = await Promise.resolve().then(() => (init_store(), store_exports));
+          await updateMallOrderPaid3(outTradeNo, transactionId, "");
+          console.log("[Pay] \u5546\u57CE\u8BA2\u5355\u652F\u4ED8\u6210\u529F", { orderId: outTradeNo, goodsId: attach.goodsId });
+        } else if (attach.memberLevel > 0) {
+          const days = getPlanDays(attach.memberLevel);
+          const times = getPlanTimes(attach.memberLevel);
+          await purchaseMember(
+            attach.userId,
+            attach.memberLevel,
+            attach.planId || outTradeNo,
+            getPlanName(attach.memberLevel),
+            days,
+            times
+          );
+          console.log("[Pay] \u4F1A\u5458\u5F00\u901A\u6210\u529F", { orderId: outTradeNo, level: attach.memberLevel });
+        }
+        if (attach) {
+          await releasePayLock(attach.userId, String(attach.memberLevel || 0));
+        }
+        return xmlEncode({ return_code: "SUCCESS", return_msg: "OK" });
+      }
+    }
+    return xmlEncode({ return_code: "FAIL", return_msg: params.err_code_des || "\u652F\u4ED8\u5931\u8D25" });
+  } catch (err) {
+    console.error("[Pay] \u56DE\u8C03\u5904\u7406\u5F02\u5E38", err);
+    return xmlEncode({ return_code: "FAIL", return_msg: err.message });
+  }
+}
+function getPlanName(level) {
+  const names = {
+    0: "\u5355\u6B21\u8BCA\u65AD",
+    1: "\u5B63VIP",
+    2: "\u534A\u5E74SVIP",
+    3: "\u9ED1\u91D1\u5E74\u5361"
+  };
+  return names[level] || "\u4F1A\u5458";
+}
+function getPlanDays(level) {
+  const days = { 0: 0, 1: 90, 2: 180, 3: 365 };
+  return days[level] || 30;
+}
+function getPlanTimes(level) {
+  const times = { 0: 1, 1: 10, 2: 30, 3: 50 };
+  return times[level] || 1;
+}
+function xmlEncode(obj) {
+  return "<xml>" + Object.entries(obj).filter(([, v]) => v !== void 0 && v !== null).map(([k, v]) => `<${k}><![CDATA[${v}]]></${k}>`).join("") + "</xml>";
+}
+function xmlDecode(xml) {
+  const result = {};
+  const re = /<(\w+)><!\[CDATA\[([^\]]*)\]\]><\/\1>/g;
+  let m;
+  while ((m = re.exec(xml)) !== null) {
+    result[m[1]] = m[2];
+  }
+  return result;
+}
+var MCH_ID, API_KEY, APP_ID;
+var init_pay_service = __esm({
+  "src/modules/pay/pay.service.ts"() {
+    init_store();
+    init_redis();
+    MCH_ID = process.env.WEIXIN_MCH_ID || "1745479207";
+    API_KEY = process.env.WEINXIN_PAY_API_KEY || "";
+    APP_ID = "wxfd20b5775b2f6046";
+  }
+});
+
 // src/index.ts
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -4961,6 +5235,48 @@ async function getMemberStatus(phone) {
 // src/modules/member/member.route.ts
 init_store();
 async function memberRoutes(fastify) {
+  fastify.post("/prepay", async (request, reply) => {
+    const { planId, openid, reportId } = request.body || {};
+    if (!planId || !openid) {
+      return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u53C2\u6570" });
+    }
+    const planMap = {
+      "0": { level: 0, fee: 3980 },
+      "once": { level: 0, fee: 3980 },
+      "single": { level: 0, fee: 3980 },
+      "1": { level: 1, fee: 19800 },
+      "quarter": { level: 1, fee: 19800 },
+      "season": { level: 1, fee: 19800 },
+      "2": { level: 2, fee: 58800 },
+      "halfyear": { level: 2, fee: 58800 },
+      "svip": { level: 2, fee: 58800 },
+      "3": { level: 3, fee: 298800 },
+      "year": { level: 3, fee: 298800 },
+      "black": { level: 3, fee: 298800 }
+    };
+    const plan = planMap[planId] || planMap["0"];
+    try {
+      const { unifiedOrder: unifiedOrder2 } = await Promise.resolve().then(() => (init_pay_service(), pay_service_exports));
+      const result = await unifiedOrder2({
+        openid,
+        planId,
+        memberLevel: plan.level,
+        totalFee: plan.fee,
+        userId: openid
+      });
+      if (!result.success) {
+        return reply.status(400).send({ success: false, error: result.error });
+      }
+      return {
+        success: true,
+        orderId: result.data.orderId,
+        payParams: result.data.jsapiParams || result.data
+      };
+    } catch (e) {
+      console.error("[Member] \u9884\u4E0B\u5355\u5931\u8D25:", e);
+      return reply.status(500).send({ success: false, error: "\u4E0B\u5355\u5931\u8D25" });
+    }
+  });
   fastify.post("/deduct", {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
@@ -5367,267 +5683,9 @@ async function webhookRoutes(fastify) {
   });
 }
 
-// src/modules/pay/pay.service.ts
-init_store();
-import * as crypto2 from "crypto";
-import { v4 as uuidv43 } from "uuid";
-
-// src/db/redis.js
-import Redis from "ioredis";
-var redis = null;
-var redisAvailable = false;
-function getConfig2() {
-  return {
-    host: process.env.REDIS_HOST || "127.0.0.1",
-    port: Number(process.env.REDIS_PORT || "6379"),
-    password: process.env.REDIS_PASSWORD || "",
-    db: Number(process.env.REDIS_DB || "0")
-  };
-}
-async function initRedis() {
-  const cfg = getConfig2();
-  try {
-    redis = new Redis({
-      host: cfg.host,
-      port: cfg.port,
-      password: cfg.password || void 0,
-      db: cfg.db,
-      connectTimeout: 5e3,
-      maxRetriesPerRequest: 3,
-      retryStrategy(times) {
-        if (times > 3) {
-          console.warn("[Redis] \u8FDE\u63A5\u5931\u8D25\uFF0C\u964D\u7EA7\u8FD0\u884C\uFF08\u65E0Redis\u6A21\u5F0F\uFF09");
-          return null;
-        }
-        return Math.min(times * 500, 2e3);
-      },
-      lazyConnect: true
-    });
-    await redis.connect();
-    await redis.ping();
-    redisAvailable = true;
-    console.log("[Redis] \u2705 \u8FDE\u63A5\u6210\u529F:", cfg.host + ":" + cfg.port);
-    return redis;
-  } catch (e) {
-    redisAvailable = false;
-    console.warn("[Redis] \u8FDE\u63A5\u5931\u8D25\uFF0C\u964D\u7EA7\u8FD0\u884C:", String(e));
-    redis = null;
-    return null;
-  }
-}
-function isRedisAvailable() {
-  return redisAvailable && redis !== null;
-}
-async function acquirePayLock(userId, planId, ttlSeconds = 120) {
-  if (!isRedisAvailable()) {
-    if (!globalThis._payLocks) globalThis._payLocks = {};
-    const key2 = userId + ":" + planId;
-    if (globalThis._payLocks[key2]) return false;
-    globalThis._payLocks[key2] = true;
-    setTimeout(() => {
-      delete globalThis._payLocks[key2];
-    }, ttlSeconds * 1e3);
-    return true;
-  }
-  const key = "qxt:paylock:" + userId + ":" + planId;
-  const result = await redis.set(key, "1", "EX", ttlSeconds, "NX");
-  return result === "OK";
-}
-async function releasePayLock(userId, planId) {
-  const key = "qxt:paylock:" + userId + ":" + planId;
-  if (isRedisAvailable()) {
-    await redis.del(key);
-  } else {
-    if (globalThis._payLocks) delete globalThis._payLocks[userId + ":" + planId];
-  }
-}
-async function checkRateLimit(userId, maxRequests = 30, windowSeconds = 60) {
-  if (!isRedisAvailable()) return true;
-  const now = Date.now();
-  const key = "qxt:ratelimit:" + userId;
-  const windowStart = now - windowSeconds * 1e3;
-  await redis.zremrangebyscore(key, 0, windowStart);
-  const count = await redis.zcard(key);
-  if (count >= maxRequests) return false;
-  await redis.zadd(key, now, now + ":" + Math.random().toString(36).slice(2));
-  await redis.expire(key, windowSeconds + 10);
-  return true;
-}
-
-// src/modules/pay/pay.service.ts
-var MCH_ID = process.env.WEIXIN_MCH_ID || "1745479207";
-var API_KEY = process.env.WEINXIN_PAY_API_KEY || "";
-var APP_ID = "wxfd20b5775b2f6046";
-function signParams(params) {
-  const sorted = Object.keys(params).filter((k) => params[k] !== "" && params[k] !== void 0 && params[k] !== null).sort().map((k) => `${k}=${params[k]}`).join("&");
-  const signStr = sorted + "&key=" + API_KEY;
-  return crypto2.createHash("md5").update(signStr, "utf8").digest("hex").toUpperCase();
-}
-async function unifiedOrder(params) {
-  const { openid, planId, memberLevel, totalFee, userId } = params;
-  const orderId = "O" + Date.now() + uuidv43().replace(/-/g, "").slice(0, 12).toUpperCase();
-  const lockAcquired = await acquirePayLock(userId, String(memberLevel), 120);
-  if (!lockAcquired) {
-    return { success: false, error: "\u8BF7\u52FF\u91CD\u590D\u63D0\u4EA4\uFF0C\u60A8\u7684\u4E0A\u4E00\u7B14\u8BA2\u5355\u4ECD\u5728\u5904\u7406\u4E2D" };
-  }
-  const { query: query2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
-  const recent = await query2(
-    "SELECT 1 FROM orders WHERE user_id = ? AND plan_level = ? AND pay_status IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1",
-    [userId, memberLevel, "pending", "success"]
-  );
-  if (recent.length > 0) {
-    return { success: false, error: "\u60A8\u5DF2\u6709\u4E00\u7B14\u8FDB\u884C\u4E2D\u7684\u8BA2\u5355\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5" };
-  }
-  try {
-    await createOrder(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee);
-    console.log("[Pay] \u8BA2\u5355\u5DF2\u521B\u5EFA:", orderId);
-  } catch (e) {
-    console.error("[Pay] \u521B\u5EFA\u8BA2\u5355\u5931\u8D25:", e.message);
-    return { success: false, error: "\u4E0B\u5355\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" };
-  }
-  const timeStart = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const timeExpire = new Date(Date.now() + 30 * 60 * 1e3).toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const nonceStr = uuidv43().replace(/-/g, "");
-  const postData = {
-    appid: APP_ID,
-    mch_id: MCH_ID,
-    nonce_str: nonceStr,
-    body: "\u542F\u4FE1\u901A\u4F1A\u5458-" + getPlanName(memberLevel),
-    out_trade_no: orderId,
-    total_fee: String(totalFee),
-    spbill_create_ip: "127.0.0.1",
-    notify_url: "https://qixintong-prod-254473-7-1429024094.sh.run.tcloudbase.com/api/v1/pay/callback",
-    trade_type: "JSAPI",
-    openid,
-    time_start: timeStart,
-    time_expire: timeExpire,
-    attach: JSON.stringify({ planId, memberLevel, userId })
-  };
-  postData.sign = signParams(postData);
-  const xmlBody = xmlEncode(postData);
-  try {
-    const resp = await fetch("https://api.mch.weixin.qq.com/pay/unifiedorder", {
-      method: "POST",
-      headers: { "Content-Type": "text/xml" },
-      body: xmlBody
-    });
-    const xmlText = await resp.text();
-    const result = xmlDecode(xmlText);
-    if (result.return_code === "SUCCESS" && result.result_code === "SUCCESS") {
-      const signParams2 = {
-        appId: APP_ID,
-        timeStamp: String(Math.floor(Date.now() / 1e3)),
-        nonceStr,
-        package: "prepay_id=" + result.prepay_id,
-        signType: "MD5"
-      };
-      signParams2.paySign = signParams(signParams2);
-      return {
-        success: true,
-        data: {
-          orderId,
-          prepayId: result.prepay_id,
-          jsapiParams: signParams2
-        }
-      };
-    } else {
-      return { success: false, error: result.err_code_des || result.return_msg || "\u4E0B\u5355\u5931\u8D25" };
-    }
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-}
-async function handlePayCallback(xmlBody) {
-  try {
-    const params = xmlDecode(xmlBody);
-    if (params.return_code !== "SUCCESS") {
-      return xmlEncode({ return_code: "FAIL", return_msg: "\u7B7E\u540D\u5931\u8D25" });
-    }
-    const { sign, ...rest } = params;
-    const expectedSign = signParams(rest);
-    if (sign !== expectedSign) {
-      console.error("[Pay] \u7B7E\u540D\u9A8C\u8BC1\u5931\u8D25", { expected: expectedSign, got: sign });
-      return xmlEncode({ return_code: "FAIL", return_msg: "\u7B7E\u540D\u5931\u8D25" });
-    }
-    let attach = null;
-    try {
-      attach = JSON.parse(params.attach);
-    } catch {
-      attach = null;
-    }
-    if (params.result_code === "SUCCESS") {
-      const outTradeNo = params.out_trade_no || "";
-      const transactionId = params.transaction_id || "";
-      await updateOrderPaid(outTradeNo, transactionId, xmlBody);
-      if (attach && attach.memberLevel !== void 0 && attach.userId) {
-        if (attach.memberLevel === 0 && attach.reportId) {
-          const { saveReport: saveReport2 } = await Promise.resolve().then(() => (init_store(), store_exports));
-          await saveReport2(attach.reportId, {
-            userId: attach.userId,
-            isLocked: false,
-            orderId: outTradeNo
-          });
-          console.log("[Pay] \u5355\u6B21\u62A5\u544A\u89E3\u9501\u6210\u529F", { reportId: attach.reportId });
-        } else if (attach.memberLevel === 0 && attach.goodsId) {
-          const { updateMallOrderPaid: updateMallOrderPaid3 } = await Promise.resolve().then(() => (init_store(), store_exports));
-          await updateMallOrderPaid3(outTradeNo, transactionId, "");
-          console.log("[Pay] \u5546\u57CE\u8BA2\u5355\u652F\u4ED8\u6210\u529F", { orderId: outTradeNo, goodsId: attach.goodsId });
-        } else if (attach.memberLevel > 0) {
-          const days = getPlanDays(attach.memberLevel);
-          const times = getPlanTimes(attach.memberLevel);
-          await purchaseMember(
-            attach.userId,
-            attach.memberLevel,
-            attach.planId || outTradeNo,
-            getPlanName(attach.memberLevel),
-            days,
-            times
-          );
-          console.log("[Pay] \u4F1A\u5458\u5F00\u901A\u6210\u529F", { orderId: outTradeNo, level: attach.memberLevel });
-        }
-        if (attach) {
-          await releasePayLock(attach.userId, String(attach.memberLevel || 0));
-        }
-        return xmlEncode({ return_code: "SUCCESS", return_msg: "OK" });
-      }
-    }
-    return xmlEncode({ return_code: "FAIL", return_msg: params.err_code_des || "\u652F\u4ED8\u5931\u8D25" });
-  } catch (err) {
-    console.error("[Pay] \u56DE\u8C03\u5904\u7406\u5F02\u5E38", err);
-    return xmlEncode({ return_code: "FAIL", return_msg: err.message });
-  }
-}
-function getPlanName(level) {
-  const names = {
-    0: "\u5355\u6B21\u8BCA\u65AD",
-    1: "\u5B63VIP",
-    2: "\u534A\u5E74SVIP",
-    3: "\u9ED1\u91D1\u5E74\u5361"
-  };
-  return names[level] || "\u4F1A\u5458";
-}
-function getPlanDays(level) {
-  const days = { 0: 0, 1: 90, 2: 180, 3: 365 };
-  return days[level] || 30;
-}
-function getPlanTimes(level) {
-  const times = { 0: 1, 1: 10, 2: 30, 3: 50 };
-  return times[level] || 1;
-}
-function xmlEncode(obj) {
-  return "<xml>" + Object.entries(obj).filter(([, v]) => v !== void 0 && v !== null).map(([k, v]) => `<${k}><![CDATA[${v}]]></${k}>`).join("") + "</xml>";
-}
-function xmlDecode(xml) {
-  const result = {};
-  const re = /<(\w+)><!\[CDATA\[([^\]]*)\]\]><\/\1>/g;
-  let m;
-  while ((m = re.exec(xml)) !== null) {
-    result[m[1]] = m[2];
-  }
-  return result;
-}
-
 // src/modules/pay/pay.route.ts
+init_pay_service();
+init_pay_service();
 async function payRoutes(fastify) {
   fastify.get("/pay/test", async (_req, reply) => {
     return reply.send({ success: true, message: "pay route ok", time: (/* @__PURE__ */ new Date()).toISOString() });
@@ -5698,6 +5756,7 @@ async function payRoutes(fastify) {
 
 // src/modules/mall/mall.route.ts
 init_store();
+init_pay_service();
 async function mallRoutes(fastify) {
   fastify.get("/goods", async (request, reply) => {
     try {
@@ -5781,6 +5840,7 @@ async function mallRoutes(fastify) {
 // src/index.ts
 init_mysql();
 init_store();
+init_redis();
 var __dirname = path3.dirname(fileURLToPath2(import.meta.url));
 var app = Fastify({
   logger: process.env.NODE_ENV === "production" ? { level: "warn" } : true
