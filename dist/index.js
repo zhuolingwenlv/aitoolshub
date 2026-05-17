@@ -52,7 +52,7 @@ async function initDatabase() {
     password: cfg.password,
     database: cfg.database,
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: 50,
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 1e4,
@@ -5290,6 +5290,90 @@ async function webhookRoutes(fastify) {
 init_store();
 import * as crypto2 from "crypto";
 import { v4 as uuidv43 } from "uuid";
+
+// src/db/redis.js
+import Redis from "ioredis";
+var redis = null;
+var redisAvailable = false;
+function getConfig2() {
+  return {
+    host: process.env.REDIS_HOST || "127.0.0.1",
+    port: Number(process.env.REDIS_PORT || "6379"),
+    password: process.env.REDIS_PASSWORD || "",
+    db: Number(process.env.REDIS_DB || "0")
+  };
+}
+async function initRedis() {
+  const cfg = getConfig2();
+  try {
+    redis = new Redis({
+      host: cfg.host,
+      port: cfg.port,
+      password: cfg.password || void 0,
+      db: cfg.db,
+      connectTimeout: 5e3,
+      maxRetriesPerRequest: 3,
+      retryStrategy(times) {
+        if (times > 3) {
+          console.warn("[Redis] \u8FDE\u63A5\u5931\u8D25\uFF0C\u964D\u7EA7\u8FD0\u884C\uFF08\u65E0Redis\u6A21\u5F0F\uFF09");
+          return null;
+        }
+        return Math.min(times * 500, 2e3);
+      },
+      lazyConnect: true
+    });
+    await redis.connect();
+    await redis.ping();
+    redisAvailable = true;
+    console.log("[Redis] \u2705 \u8FDE\u63A5\u6210\u529F:", cfg.host + ":" + cfg.port);
+    return redis;
+  } catch (e) {
+    redisAvailable = false;
+    console.warn("[Redis] \u8FDE\u63A5\u5931\u8D25\uFF0C\u964D\u7EA7\u8FD0\u884C:", String(e));
+    redis = null;
+    return null;
+  }
+}
+function isRedisAvailable() {
+  return redisAvailable && redis !== null;
+}
+async function acquirePayLock(userId, planId, ttlSeconds = 120) {
+  if (!isRedisAvailable()) {
+    if (!globalThis._payLocks) globalThis._payLocks = {};
+    const key2 = userId + ":" + planId;
+    if (globalThis._payLocks[key2]) return false;
+    globalThis._payLocks[key2] = true;
+    setTimeout(() => {
+      delete globalThis._payLocks[key2];
+    }, ttlSeconds * 1e3);
+    return true;
+  }
+  const key = "qxt:paylock:" + userId + ":" + planId;
+  const result = await redis.set(key, "1", "EX", ttlSeconds, "NX");
+  return result === "OK";
+}
+async function releasePayLock(userId, planId) {
+  const key = "qxt:paylock:" + userId + ":" + planId;
+  if (isRedisAvailable()) {
+    await redis.del(key);
+  } else {
+    if (globalThis._payLocks) delete globalThis._payLocks[userId + ":" + planId];
+  }
+}
+async function checkRateLimit(userId, maxRequests = 30, windowSeconds = 60) {
+  if (!isRedisAvailable()) return true;
+  const now = Date.now();
+  const key = "qxt:ratelimit:" + userId;
+  const windowStart = now - windowSeconds * 1e3;
+  await redis.zremrangebyscore(key, 0, windowStart);
+  const count = await redis.zcard(key);
+  if (count >= maxRequests) return false;
+  await redis.zadd(key, now, now + ":" + Math.random().toString(36).slice(2));
+  await redis.expire(key, windowSeconds + 10);
+  return true;
+}
+
+// src/modules/pay/pay.service.ts
 var MCH_ID = process.env.WEIXIN_MCH_ID || "1745479207";
 var API_KEY = process.env.WEINXIN_PAY_API_KEY || "";
 var APP_ID = "wxfd20b5775b2f6046";
@@ -5301,6 +5385,10 @@ function signParams(params) {
 async function unifiedOrder(params) {
   const { openid, planId, memberLevel, totalFee, userId } = params;
   const orderId = "O" + Date.now() + uuidv43().replace(/-/g, "").slice(0, 12).toUpperCase();
+  const lockAcquired = await acquirePayLock(userId, String(memberLevel), 120);
+  if (!lockAcquired) {
+    return { success: false, error: "\u8BF7\u52FF\u91CD\u590D\u63D0\u4EA4\uFF0C\u60A8\u7684\u4E0A\u4E00\u7B14\u8BA2\u5355\u4ECD\u5728\u5904\u7406\u4E2D" };
+  }
   const { query: query2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
   const recent = await query2(
     "SELECT 1 FROM orders WHERE user_id = ? AND plan_level = ? AND pay_status IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1",
@@ -5416,9 +5504,13 @@ async function handlePayCallback(xmlBody) {
           );
           console.log("[Pay] \u4F1A\u5458\u5F00\u901A\u6210\u529F", { orderId: outTradeNo, level: attach.memberLevel });
         }
+        if (attach) {
+          await releasePayLock(attach.userId, String(attach.memberLevel || 0));
+        }
+        return xmlEncode({ return_code: "SUCCESS", return_msg: "OK" });
       }
     }
-    return xmlEncode({ return_code: "SUCCESS", return_msg: "OK" });
+    return xmlEncode({ return_code: "FAIL", return_msg: params.err_code_des || "\u652F\u4ED8\u5931\u8D25" });
   } catch (err) {
     console.error("[Pay] \u56DE\u8C03\u5904\u7406\u5F02\u5E38", err);
     return xmlEncode({ return_code: "FAIL", return_msg: err.message });
@@ -5753,6 +5845,16 @@ var start = async () => {
     await initPool();
     await ensureTables2();
     console.log("[MySQL] \u2705 \u521D\u59CB\u5316\u5B8C\u6210");
+    await initRedis();
+    app.addHook("onRequest", async (request, reply) => {
+      const userId = request.user?.openid || request.ip || "anon";
+      const path4 = request.url;
+      if (path4 === "/health" || path4.startsWith("/pdfs/") || path4.startsWith("/uploads/")) return;
+      const ok = await checkRateLimit(userId, 30, 60);
+      if (!ok) {
+        return reply.status(429).send({ error: "\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5", code: "RATE_LIMITED" });
+      }
+    });
     await app.listen({ port: config.port, host: config.host });
     console.log(`\u2705 \u542F\u4FE1\u901A\u540E\u7AEF\u5DF2\u542F\u52A8: http://${config.host}:${config.port}`);
   } catch (err) {

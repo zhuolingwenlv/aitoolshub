@@ -2,6 +2,7 @@ import * as crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { purchaseMember } from '../member/member.service.js'
 import { updateOrderPaid, createOrder, purchaseMember as storePurchaseMember } from '../../db/store.js'
+import { acquirePayLock, releasePayLock } from '../../db/redis.js'
 
 // ============================================================
 // 微信支付配置（从环境变量读取）
@@ -36,6 +37,12 @@ export async function unifiedOrder(params: {
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   const { openid, planId, memberLevel, totalFee, userId } = params
   const orderId = 'O' + Date.now() + uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()
+
+  // Redis分布式锁（120秒，防并发重复下单）
+  const lockAcquired = await acquirePayLock(userId, String(memberLevel), 120)
+  if (!lockAcquired) {
+    return { success: false, error: '请勿重复提交，您的上一笔订单仍在处理中' }
+  }
 
   // 防重复：检查近60秒是否有该用户的待支付/已支付同级别订单
   const { query } = await import('../../db/mysql.js')
@@ -184,10 +191,17 @@ export async function handlePayCallback(xmlBody: string): Promise<string> {
           )
           console.log('[Pay] 会员开通成功', { orderId: outTradeNo, level: attach.memberLevel })
         }
+      // 释放支付锁
+      if (attach) {
+        await releasePayLock(attach.userId, String(attach.memberLevel || 0))
       }
+
+      return xmlEncode({ return_code: 'SUCCESS', return_msg: 'OK' })
+    }
     }
 
-    return xmlEncode({ return_code: 'SUCCESS', return_msg: 'OK' })
+    // 支付失败
+    return xmlEncode({ return_code: 'FAIL', return_msg: params.err_code_des || '支付失败' })
   } catch (err: any) {
     console.error('[Pay] 回调处理异常', err)
     return xmlEncode({ return_code: 'FAIL', return_msg: err.message })

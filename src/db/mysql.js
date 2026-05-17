@@ -50,7 +50,7 @@ async function initDatabase() {
     password: cfg.password,
     database: cfg.database,
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: 50,
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,

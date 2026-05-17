@@ -18,6 +18,7 @@ import { payRoutes } from './modules/pay/pay.route.js'
 import { mallRoutes } from './modules/mall/mall.route.js'
 import { initPool } from './db/mysql.js'
 import { ensureTables } from './db/store.js'
+import { initRedis, checkRateLimit, isRedisAvailable } from './db/redis.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -208,6 +209,21 @@ const start = async () => {
     await initPool()
     await ensureTables()
     console.log('[MySQL] ✅ 初始化完成')
+
+    // Redis 初始化（失败降级，不阻塞启动）
+    await initRedis()
+
+    // 全局限流中间件（每个请求自动检查）
+    app.addHook('onRequest', async (request, reply) => {
+      const userId = (request as any).user?.openid || request.ip || 'anon'
+      const path = request.url
+      // 跳过静态资源和健康检查
+      if (path === '/health' || path.startsWith('/pdfs/') || path.startsWith('/uploads/')) return
+      const ok = await checkRateLimit(userId, 30, 60)
+      if (!ok) {
+        return reply.status(429).send({ error: '请求过于频繁，请稍后重试', code: 'RATE_LIMITED' })
+      }
+    })
 
     await app.listen({ port: config.port, host: config.host })
     console.log(`✅ 启信通后端已启动: http://${config.host}:${config.port}`)

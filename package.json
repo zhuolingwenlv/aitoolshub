@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "rm -rf dist && cp -r src/data dist/ && node_modules/.bin/esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:pdfkit --external:fastify --external:@fastify/* --external:wxpay-sdk --external:axios --external:dotenv --external:uuid --external:mysql2 --external:mysql2/* --external:sql-escaper --external:node:* --external:node:buffer",
+    "build": "rm -rf dist && cp -r src/data dist/ && node_modules/.bin/esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:pdfkit --external:fastify --external:@fastify/* --external:wxpay-sdk --external:axios --external:dotenv --external:uuid --external:mysql2 --external:mysql2/* --external:sql-escaper --external:ioredis --external:node:* --external:node:buffer",
     "start": "node dist/index.js",
     "db:migrate": "tsx src/db/migrate.ts"
   },
@@ -19,6 +19,7 @@
     "dotenv": "^16.4.0",
     "esbuild": "^0.28.0",
     "fastify": "^4.26.0",
+    "ioredis": "^5.10.1",
     "mysql2": "^3.22.3",
     "pdfkit": "^0.16.0",
     "tsx": "^4.7.0",
