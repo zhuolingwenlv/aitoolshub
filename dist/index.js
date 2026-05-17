@@ -5949,7 +5949,7 @@ await app.register(memberRoutes, { prefix: "/api/v1/member" });
 await app.register(mallRoutes, { prefix: "/api/v1/mall" });
 await app.register(adminRoute, { prefix: "/api/v1/admin" });
 await app.register(webhookRoutes, { prefix: "/api/v1/ext" });
-await app.register(payRoutes, { prefix: "" });
+await app.register(payRoutes, { prefix: "/api/v1" });
 app.get("/health", async () => ({ status: "ok", time: (/* @__PURE__ */ new Date()).toISOString() }));
 app.get("/api/v1/admin/tables", async (_req, reply) => {
   try {

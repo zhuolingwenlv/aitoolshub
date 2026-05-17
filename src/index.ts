@@ -157,7 +157,7 @@ await app.register(memberRoutes, { prefix: '/api/v1/member' })
 await app.register(mallRoutes, { prefix: '/api/v1/mall' })
 await app.register(adminRoute, { prefix: '/api/v1/admin' })
 await app.register(webhookRoutes, { prefix: '/api/v1/ext' })
-await app.register(payRoutes, { prefix: '' })
+await app.register(payRoutes, { prefix: '/api/v1' })
 
 // 健康检查 /api/v1/health
 app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }))
