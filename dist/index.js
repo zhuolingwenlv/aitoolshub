@@ -860,12 +860,29 @@ async function unifiedOrder(params) {
   postData.sign = signParams(postData);
   const xmlBody = xmlEncode(postData);
   try {
-    const resp = await fetch("https://api.mch.weixin.qq.com/pay/unifiedorder", {
-      method: "POST",
-      headers: { "Content-Type": "text/xml" },
-      body: xmlBody
+    const https = await import("node:https");
+    const xmlText = await new Promise((resolve, reject) => {
+      const u = new URL("https://api.mch.weixin.qq.com/pay/unifiedorder");
+      const req = https.request({
+        hostname: u.hostname,
+        port: 443,
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: { "Content-Type": "text/xml" },
+        timeout: 3e4
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => data += chunk);
+        res.on("end", () => resolve(data));
+      });
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error("ETIMEDOUT"));
+      });
+      req.on("error", reject);
+      req.write(xmlBody);
+      req.end();
     });
-    const xmlText = await resp.text();
     const result = xmlDecode(xmlText);
     if (result.return_code === "SUCCESS" && result.result_code === "SUCCESS") {
       const signParams2 = {

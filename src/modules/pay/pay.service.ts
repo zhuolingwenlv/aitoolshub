@@ -97,13 +97,23 @@ export async function unifiedOrder(params: {
   const xmlBody = xmlEncode(postData)
 
   try {
-    const resp = await fetch('https://api.mch.weixin.qq.com/pay/unifiedorder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/xml' },
-      body: xmlBody,
+    // Node.js https 模块（不用 fetch——容器里 fetch 不可靠）
+    const https = await import('node:https')
+    const xmlText = await new Promise<string>((resolve, reject) => {
+      const u = new URL('https://api.mch.weixin.qq.com/pay/unifiedorder')
+      const req = https.request({
+        hostname: u.hostname, port: 443, path: u.pathname + u.search,
+        method: 'POST', headers: { 'Content-Type': 'text/xml' }, timeout: 30000,
+      }, (res) => {
+        let data = ''
+        res.on('data', chunk => data += chunk)
+        res.on('end', () => resolve(data))
+      })
+      req.on('timeout', () => { req.destroy(); reject(new Error('ETIMEDOUT')) })
+      req.on('error', reject)
+      req.write(xmlBody)
+      req.end()
     })
-
-    const xmlText = await resp.text()
     const result = xmlDecode(xmlText)
 
     if (result.return_code === 'SUCCESS' && result.result_code === 'SUCCESS') {
