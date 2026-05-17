@@ -8,143 +8,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/db/mockStore.ts
-var mockStore_exports = {};
-__export(mockStore_exports, {
-  consumeVerifyCode: () => consumeVerifyCode,
-  createOrder: () => createOrder,
-  createUser: () => createUser,
-  deductMemberRemainCount: () => deductMemberRemainCount,
-  deleteReport: () => deleteReport,
-  findUserByPhone: () => findUserByPhone,
-  getMemberInfo: () => getMemberInfo,
-  getReport: () => getReport,
-  mockDb: () => mockDb,
-  saveReport: () => saveReport,
-  setMemberInfo: () => setMemberInfo,
-  setVerifyCode: () => setVerifyCode,
-  updateOrderPaid: () => updateOrderPaid
-});
-import { v4 as uuidv4 } from "uuid";
-function findUserByPhone(phone) {
-  return users.get(phone);
-}
-function createUser(phone, nickname) {
-  const user = {
-    id: uuidv4(),
-    phone,
-    nickname: nickname || `\u7528\u6237${phone.slice(-4)}`,
-    password: "",
-    memberLevel: 0,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  users.set(phone, user);
-  return user;
-}
-function setVerifyCode(phone, code, expiresMs = 10 * 60 * 1e3) {
-  const entry = { code, expiresAt: Date.now() + expiresMs, used: false };
-  verifyCodes.set(phone, entry);
-  console.log(`\u{1F4F1} \u9A8C\u8BC1\u7801 ${phone} -> ${code}\uFF08Mock\u6A21\u5F0F\uFF0C\u4EC5\u5F00\u53D1\u73AF\u5883\u663E\u793A\uFF09`);
-}
-function consumeVerifyCode(phone, code) {
-  if (code === "123456") return true;
-  const entry = verifyCodes.get(phone);
-  if (!entry) return false;
-  if (entry.used) return false;
-  if (Date.now() > entry.expiresAt) return false;
-  if (entry.code !== code) return false;
-  entry.used = true;
-  return true;
-}
-function saveReport(reportId, data) {
-  reports.set(reportId, data);
-}
-function getReport(reportId) {
-  return reports.get(reportId);
-}
-function deleteReport(reportId) {
-  return reports.delete(reportId);
-}
-function createOrder(orderId, userId, level) {
-  const order = { orderId, userId, level, status: "pending", paidAt: null, createAt: (/* @__PURE__ */ new Date()).toISOString() };
-  orders.set(orderId, order);
-  return order;
-}
-function updateOrderPaid(orderId) {
-  const order = orders.get(orderId);
-  if (order) {
-    order.status = "paid";
-    order.paidAt = (/* @__PURE__ */ new Date()).toISOString();
-  }
-}
-function getMemberInfo(phone) {
-  return memberInfo.get(phone);
-}
-function setMemberInfo(phone, info) {
-  memberInfo.set(phone, {
-    ...info,
-    lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
-  });
-}
-function deductMemberRemainCount(phone, count = 1) {
-  const info = memberInfo.get(phone);
-  if (!info) return false;
-  if (info.remainCount <= 0) return false;
-  info.remainCount -= count;
-  info.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
-  return true;
-}
-var users, verifyCodes, reports, orders, memberInfo, evidenceAnalysis, seedUsers, mockDb;
-var init_mockStore = __esm({
-  "src/db/mockStore.ts"() {
-    users = /* @__PURE__ */ new Map();
-    verifyCodes = /* @__PURE__ */ new Map();
-    reports = /* @__PURE__ */ new Map();
-    orders = /* @__PURE__ */ new Map();
-    memberInfo = /* @__PURE__ */ new Map();
-    evidenceAnalysis = /* @__PURE__ */ new Map();
-    seedUsers = [
-      { phone: "13800138001", nickname: "\u6D4B\u8BD5\u7528\u6237A", password: "qxt123456", memberLevel: 1 },
-      { phone: "13800138002", nickname: "\u6D4B\u8BD5\u7528\u6237B", password: "qxt123456", memberLevel: 2 },
-      { phone: "13800138003", nickname: "\u6D4B\u8BD5\u7528\u6237C", password: "qxt123456", memberLevel: 0 },
-      { phone: "13800138004", nickname: "\u6D4B\u8BD5\u7528\u6237D", password: "qxt123456", memberLevel: 0 },
-      { phone: "13800138888", nickname: "\u9ED1\u91D1\u7528\u6237", password: "qxt123456", memberLevel: 3 }
-    ];
-    for (const u of seedUsers) {
-      users.set(u.phone, {
-        id: uuidv4(),
-        phone: u.phone,
-        nickname: u.nickname,
-        password: u.password,
-        memberLevel: u.memberLevel,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-      memberInfo.set(u.phone, {
-        memberLevel: u.memberLevel,
-        remainCount: u.memberLevel === 1 ? 10 : u.memberLevel === 2 ? 20 : u.memberLevel === 3 ? 50 : 0,
-        expireDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3).toISOString(),
-        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
-    users.set("13800138000", {
-      id: uuidv4(),
-      phone: "13800138000",
-      nickname: "\u6D4B\u8BD5\u7528\u6237",
-      password: "123456",
-      // 真实项目必须 bcrypt
-      memberLevel: 0,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-    memberInfo.set("13800138000", {
-      memberLevel: 0,
-      remainCount: 0,
-      expireDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3).toISOString(),
-      lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
-    });
-    mockDb = { users, verifyCodes, reports, orders, memberInfo, evidenceAnalysis };
-  }
-});
-
 // src/db/mysql.js
 var mysql_exports = {};
 __export(mysql_exports, {
@@ -299,21 +162,21 @@ var init_mysql = __esm({
 // src/db/store.ts
 var store_exports = {};
 __export(store_exports, {
-  consumeVerifyCode: () => consumeVerifyCode2,
+  consumeVerifyCode: () => consumeVerifyCode,
   createMallOrder: () => createMallOrder,
-  createOrder: () => createOrder2,
-  createUser: () => createUser2,
-  deductMemberRemainCount: () => deductMemberRemainCount2,
-  deleteReport: () => deleteReport2,
+  createOrder: () => createOrder,
+  createUser: () => createUser,
+  deductMemberRemainCount: () => deductMemberRemainCount,
+  deleteReport: () => deleteReport,
   ensureTables: () => ensureTables2,
   findOrCreateUser: () => findOrCreateUser,
   findUserByOpenid: () => findUserByOpenid,
-  findUserByPhone: () => findUserByPhone2,
+  findUserByPhone: () => findUserByPhone,
   getGoods: () => getGoods,
   getMallOrder: () => getMallOrder,
-  getMemberInfo: () => getMemberInfo2,
+  getMemberInfo: () => getMemberInfo,
   getOrder: () => getOrder,
-  getReport: () => getReport2,
+  getReport: () => getReport,
   isMember: () => isMember,
   isOrderPaid: () => isOrderPaid,
   listGoods: () => listGoods,
@@ -321,18 +184,18 @@ __export(store_exports, {
   listReportsByUser: () => listReportsByUser,
   listUserMallOrders: () => listUserMallOrders,
   purchaseMember: () => purchaseMember,
-  saveReport: () => saveReport2,
-  setVerifyCode: () => setVerifyCode2,
+  saveReport: () => saveReport,
+  setVerifyCode: () => setVerifyCode,
   updateMallOrderPaid: () => updateMallOrderPaid,
-  updateOrderPaid: () => updateOrderPaid2
+  updateOrderPaid: () => updateOrderPaid
 });
-function setVerifyCode2(phone, code, expiresMs = 10 * 60 * 1e3) {
-  verifyCodes2.set(phone, { code, expiresAt: Date.now() + expiresMs, used: false });
+function setVerifyCode(phone, code, expiresMs = 10 * 60 * 1e3) {
+  verifyCodes.set(phone, { code, expiresAt: Date.now() + expiresMs, used: false });
   console.log(`[Verify] ${phone} -> ${code}`);
 }
-function consumeVerifyCode2(phone, code) {
+function consumeVerifyCode(phone, code) {
   if (code === "123456") return true;
-  const entry = verifyCodes2.get(phone);
+  const entry = verifyCodes.get(phone);
   if (!entry || entry.used || Date.now() > entry.expiresAt || entry.code !== code) return false;
   entry.used = true;
   return true;
@@ -342,12 +205,12 @@ async function findUserByOpenid(openid) {
   if (!rows[0]) return null;
   return parseUser(rows[0]);
 }
-async function findUserByPhone2(phone) {
+async function findUserByPhone(phone) {
   const rows = await query("SELECT * FROM users WHERE phone = ? AND is_deleted = 0 LIMIT 1", [phone]);
   if (!rows[0]) return null;
   return parseUser(rows[0]);
 }
-async function createUser2(opts) {
+async function createUser(opts) {
   const { openid = "", phone = "", nickname = "", registerSource = "phone" } = opts;
   const finalNickname = nickname || `\u7528\u6237${(phone || openid).slice(-4)}`;
   await insert(
@@ -355,13 +218,13 @@ async function createUser2(opts) {
      ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), is_deleted = 0, updated_at = NOW()`,
     [openid, phone, finalNickname, registerSource]
   );
-  return findUserByPhone2(phone) || (openid ? findUserByOpenid(openid) : null);
+  return findUserByPhone(phone) || (openid ? findUserByOpenid(openid) : null);
 }
 async function findOrCreateUser(opts) {
   const { openid, phone, nickname, registerSource } = opts;
   let user = openid ? await findUserByOpenid(openid) : null;
-  if (!user && phone) user = await findUserByPhone2(phone);
-  if (!user) user = await createUser2({ openid, phone, nickname, registerSource });
+  if (!user && phone) user = await findUserByPhone(phone);
+  if (!user) user = await createUser({ openid, phone, nickname, registerSource });
   return user;
 }
 function parseUser(row) {
@@ -378,7 +241,7 @@ function parseUser(row) {
     updatedAt: row.updated_at
   };
 }
-async function saveReport2(reportId, data) {
+async function saveReport(reportId, data) {
   const {
     userId,
     scene = "",
@@ -466,12 +329,12 @@ async function saveReport2(reportId, data) {
     );
   }
 }
-async function getReport2(reportId) {
+async function getReport(reportId) {
   const rows = await query("SELECT * FROM drafts WHERE report_id = ? AND is_deleted = 0 LIMIT 1", [reportId]);
   if (!rows[0]) return null;
   return parseDraft(rows[0]);
 }
-async function deleteReport2(reportId) {
+async function deleteReport(reportId) {
   const result = await query(
     "UPDATE drafts SET is_deleted = 1, updated_at = NOW() WHERE report_id = ?",
     [reportId]
@@ -505,7 +368,7 @@ function parseDraft(row) {
     updatedAt: row.updated_at
   };
 }
-async function createOrder2(orderId, userId, planId, planName, planLevel, amount) {
+async function createOrder(orderId, userId, planId, planName, planLevel, amount) {
   await insert(
     "INSERT INTO orders (order_id, user_id, plan_id, plan_name, plan_level, amount) VALUES (?,?,?,?,?,?)",
     [orderId, userId, planId, planName, planLevel, amount]
@@ -516,7 +379,7 @@ async function getOrder(orderId) {
   if (!rows[0]) return null;
   return parseOrder(rows[0]);
 }
-async function updateOrderPaid2(orderId, wechatTradeNo, wxCallbackRaw) {
+async function updateOrderPaid(orderId, wechatTradeNo, wxCallbackRaw) {
   await query(
     "UPDATE orders SET pay_status = ?, wechat_trade_no = ?, paid_at = NOW(), wx_callback_raw = ? WHERE order_id = ?",
     ["success", wechatTradeNo, wxCallbackRaw || "", orderId]
@@ -553,7 +416,7 @@ function parseOrder(row) {
     updatedAt: row.updated_at
   };
 }
-async function getMemberInfo2(userId) {
+async function getMemberInfo(userId) {
   const rows = await query(
     "SELECT * FROM members WHERE user_id = ? AND is_deleted = 0 LIMIT 1",
     [userId]
@@ -565,7 +428,7 @@ async function purchaseMember(userId, level, planId, planName, days, times) {
   const expireTime = new Date(Date.now() + days * 24 * 60 * 60 * 1e3);
   const expireTimeStr = expireTime.toISOString().slice(0, 19).replace("T", " ");
   const renewDiscount = level >= 2 ? "0.80" : level === 1 ? "0.90" : "1.00";
-  const existing = await getMemberInfo2(userId);
+  const existing = await getMemberInfo(userId);
   if (existing) {
     await query(
       `UPDATE members SET level = ?, plan_id = ?, plan_name = ?,
@@ -582,7 +445,7 @@ async function purchaseMember(userId, level, planId, planName, days, times) {
     );
   }
 }
-async function deductMemberRemainCount2(userId, count = 1) {
+async function deductMemberRemainCount(userId, count = 1) {
   const result = await query(
     "UPDATE members SET remain_times = GREATEST(0, remain_times - ?) WHERE user_id = ? AND is_deleted = 0 AND remain_times >= ?",
     [count, userId, count]
@@ -795,11 +658,11 @@ async function ensureTables2() {
     }
   }
 }
-var verifyCodes2;
+var verifyCodes;
 var init_store = __esm({
   "src/db/store.ts"() {
     init_mysql();
-    verifyCodes2 = /* @__PURE__ */ new Map();
+    verifyCodes = /* @__PURE__ */ new Map();
   }
 });
 
@@ -809,7 +672,7 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import staticFiles from "@fastify/static";
-import path2 from "path";
+import path3 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 
 // src/config/index.ts
@@ -1303,48 +1166,70 @@ function scanBannedWords(text) {
 }
 
 // src/modules/evidence/evidence.route.ts
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+var UPLOAD_DIR = "/app/uploads/evidence";
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.error("[Evidence] \u521B\u5EFA\u4E0A\u4F20\u76EE\u5F55\u5931\u8D25:", UPLOAD_DIR);
+}
 async function evidenceRoutes(fastify) {
   fastify.post("/upload", async (request, reply) => {
     try {
-      let fileId, base64Data, mimeType;
+      let fileBuffer = null, originalName = "", mimeType = "image/jpeg";
+      let typeId = "", typeLabel = "", scene = "";
       if (request.isMultipart()) {
         const parts = request.parts();
         for await (const part of parts) {
           if (part.type === "file") {
-            const buffer = await part.toBuffer();
-            base64Data = buffer.toString("base64");
+            fileBuffer = await part.toBuffer();
             mimeType = part.mimetype || "image/jpeg";
-            fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            break;
+            originalName = part.filename || "upload.jpg";
+          } else if (part.fieldname === "typeId") {
+            typeId = String(part.value || "");
+          } else if (part.fieldname === "typeLabel") {
+            typeLabel = String(part.value || "");
+          } else if (part.fieldname === "scene") {
+            scene = String(part.value || "");
           }
         }
-      } else {
-        const body = request.body || {};
-        base64Data = body.base64;
-        mimeType = body.mimeType || "image/jpeg";
-        fileId = body.fileId || `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       }
-      if (!base64Data) {
-        return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u6587\u4EF6\u6570\u636E" });
+      if (!fileBuffer || fileBuffer.length === 0) {
+        return reply.status(400).send({ success: false, error: "\u6587\u4EF6\u4E3A\u7A7A\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9" });
       }
-      const url = `https://storage.example.com/evidence/${fileId}`;
+      if (fileBuffer.length > 25 * 1024 * 1024) {
+        return reply.status(400).send({ success: false, error: "\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC725MB\uFF0C\u8BF7\u538B\u7F29\u540E\u4E0A\u4F20" });
+      }
+      const hash = crypto.createHash("md5").update(fileBuffer).digest("hex").slice(0, 12);
+      const ext = path.extname(originalName) || ".jpg";
+      const fileName = `${Date.now()}_${hash}${ext}`;
+      const filePath = path.join(UPLOAD_DIR, fileName);
+      fs.writeFileSync(filePath, fileBuffer);
+      console.log("[Evidence] \u6587\u4EF6\u5DF2\u4FDD\u5B58:", filePath, `${(fileBuffer.length / 1024).toFixed(1)}KB`);
+      const url = `/uploads/evidence/${fileName}`;
+      const fileId = `ev_${Date.now()}_${hash}`;
       return {
         success: true,
         url,
         fileId,
         mimeType,
-        // 前端 showAnalysisResult 需要这些字段
+        typeId,
+        typeLabel,
         result: {
           url,
-          quality: "\u26A0\uFE0F \u5F85\u8BC4\u4F30",
-          level: "C\u7EA7 \u2605\u2605\u2605",
-          note: "\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u8BF7\u7A0D\u540E\u5206\u6790",
-          keyTerms: []
+          quality: "\u2705 \u5DF2\u4E0A\u4F20",
+          level: "\u5F85\u5206\u6790",
+          note: "\u6587\u4EF6\u5DF2\u6210\u529F\u4E0A\u4F20\u81F3\u670D\u52A1\u5668\uFF0C\u62A5\u544A\u751F\u6210\u65F6\u5C06\u81EA\u52A8\u5F15\u7528",
+          keyTerms: [typeLabel || "\u8BC1\u636E", originalName]
         }
       };
     } catch (err) {
-      console.error("\u4E0A\u4F20\u5931\u8D25:", err);
-      return reply.status(500).send({ success: false, error: "\u4E0A\u4F20\u5931\u8D25" });
+      console.error("[Evidence] \u4E0A\u4F20\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u4E0A\u4F20\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" });
     }
   });
   fastify.post("/analyze", async (request, reply) => {
@@ -1392,18 +1277,6 @@ async function evidenceRoutes(fastify) {
         claimCounterparty: claim_counterparty,
         scene
       });
-      if (draft_id) {
-        try {
-          const { mockDb: mockDb2 } = await Promise.resolve().then(() => (init_mockStore(), mockStore_exports));
-          const existing = mockDb2.evidenceAnalysis.get(draft_id) || {};
-          mockDb2.evidenceAnalysis.set(draft_id, {
-            ...existing,
-            [evidence_type]: result,
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (_) {
-        }
-      }
       return {
         success: true,
         result
@@ -1415,6 +1288,13 @@ async function evidenceRoutes(fastify) {
         error: "\u8BC1\u636E\u5206\u6790\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5"
       });
     }
+  });
+  fastify.get("/file/*", async (request, reply) => {
+    const filePath = path.join(UPLOAD_DIR, path.basename(request.params["*"] || ""));
+    if (!fs.existsSync(filePath)) {
+      return reply.status(404).send({ error: "\u6587\u4EF6\u4E0D\u5B58\u5728" });
+    }
+    return reply.sendFile(path.basename(filePath), UPLOAD_DIR);
   });
 }
 
@@ -3999,13 +3879,13 @@ function buildModule11({ scene, status, memberLevel }) {
 
 // src/modules/report/pdf.service.js
 import PDFDocument from "pdfkit";
-import fs from "fs";
-import path from "path";
+import fs2 from "fs";
+import path2 from "path";
 import { fileURLToPath } from "url";
-var PDF_DIR = process.env.NODE_ENV === "production" ? "/app/public/pdfs" : path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../public/pdfs");
+var PDF_DIR = process.env.NODE_ENV === "production" ? "/app/public/pdfs" : path2.join(path2.dirname(fileURLToPath(import.meta.url)), "../../../public/pdfs");
 try {
-  if (!fs.existsSync(PDF_DIR)) {
-    fs.mkdirSync(PDF_DIR, { recursive: true });
+  if (!fs2.existsSync(PDF_DIR)) {
+    fs2.mkdirSync(PDF_DIR, { recursive: true });
   }
 } catch (e) {
   console.warn("[PDF] \u76EE\u5F55\u521B\u5EFA\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\u6216\u65E0\u6743\u9650\uFF09:", String(e));
@@ -4441,7 +4321,7 @@ function _generateInBackground(taskId, report, filePath) {
         Producer: "\u542F\u4FE1\u901APDF\u751F\u6210\u670D\u52A1 v1.0"
       }
     });
-    const stream = fs.createWriteStream(filePath);
+    const stream = fs2.createWriteStream(filePath);
     stream.on("finish", () => {
       taskQueue.set(taskId, {
         status: "completed",
@@ -4505,7 +4385,7 @@ function generatePdfTask(report) {
   }
   const taskId = `pdf-${Date.now()}-${++taskCounter}`;
   const fileName = `report-${reportId}.pdf`;
-  const filePath = path.join(PDF_DIR, fileName);
+  const filePath = path2.join(PDF_DIR, fileName);
   taskQueue.set(taskId, {
     status: "pending",
     reportId,
@@ -4522,7 +4402,7 @@ function getPdfTaskStatus(taskId) {
   if (!task) {
     return { status: "not_found", filePath: null, error: "\u4EFB\u52A1\u4E0D\u5B58\u5728" };
   }
-  const downloadUrl = task.filePath ? `/pdfs/${path.basename(task.filePath)}` : null;
+  const downloadUrl = task.filePath ? `/pdfs/${path2.basename(task.filePath)}` : null;
   return {
     status: task.status,
     filePath: task.filePath || null,
@@ -4576,7 +4456,7 @@ async function reportRoutes(fastify) {
         }
       } catch (_) {
       }
-      await saveReport2(report.reportId, {
+      await saveReport(report.reportId, {
         userId,
         scene,
         subType: subType || "",
@@ -4601,7 +4481,7 @@ async function reportRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u62A5\u544AID" });
     }
     try {
-      const draft = await getReport2(reportId);
+      const draft = await getReport(reportId);
       if (!draft) {
         return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
       }
@@ -4625,10 +4505,10 @@ async function reportRoutes(fastify) {
   }, async (request, reply) => {
     try {
       const userId = request.user?.phone || request.user?.id || "";
-      const reports2 = await listReportsByUser(userId);
+      const reports = await listReportsByUser(userId);
       return {
         success: true,
-        reports: reports2.map((r) => ({
+        reports: reports.map((r) => ({
           reportId: r.reportId,
           scene: r.scene,
           subType: r.subType,
@@ -4652,7 +4532,7 @@ async function reportRoutes(fastify) {
   fastify.post("/:reportId/share", async (request, reply) => {
     const { reportId } = request.params || {};
     try {
-      const draft = await getReport2(reportId);
+      const draft = await getReport(reportId);
       if (!draft) {
         return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
       }
@@ -4669,7 +4549,7 @@ async function reportRoutes(fastify) {
   }, async (request, reply) => {
     const { reportId } = request.params || {};
     try {
-      const result = await deleteReport2(reportId);
+      const result = await deleteReport(reportId);
       if (!result) {
         return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
       }
@@ -4682,7 +4562,7 @@ async function reportRoutes(fastify) {
   fastify.post("/:reportId/pdf", async (request, reply) => {
     const { reportId } = request.params || {};
     try {
-      const draft = await getReport2(reportId);
+      const draft = await getReport(reportId);
       if (!draft) {
         return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
       }
@@ -4717,7 +4597,7 @@ async function userRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u8BF7\u8F93\u5165\u6B63\u786E\u7684\u624B\u673A\u53F7" });
     }
     const code = process.env.NODE_ENV === "production" ? String(Math.floor(1e5 + Math.random() * 9e5)) : "123456";
-    setVerifyCode2(phone, code);
+    setVerifyCode(phone, code);
     return {
       success: true,
       message: process.env.NODE_ENV === "production" ? "\u9A8C\u8BC1\u7801\u5DF2\u53D1\u9001" : "\u5F00\u53D1\u6A21\u5F0F\uFF1A\u9A8C\u8BC1\u7801\u4E3A 123456",
@@ -4730,13 +4610,13 @@ async function userRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u624B\u673A\u53F7\u548C\u9A8C\u8BC1\u7801\u4E0D\u80FD\u4E3A\u7A7A" });
     }
     if (code !== "123456") {
-      if (!consumeVerifyCode2(phone, code)) {
+      if (!consumeVerifyCode(phone, code)) {
         return reply.status(400).send({ success: false, error: "\u9A8C\u8BC1\u7801\u9519\u8BEF\u6216\u5DF2\u5931\u6548" });
       }
     }
     const user = await findOrCreateUser({ phone, nickname: `\u7528\u6237${phone.slice(-4)}`, registerSource: "phone" });
     const token = fastify.jwt.sign({ id: user.id, phone: user.phone });
-    const member = await getMemberInfo2(user.id) || { level: 0, remainTimes: 0, expireTime: null };
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
       token,
@@ -4761,7 +4641,7 @@ async function userRoutes(fastify) {
     }
     const user = await findOrCreateUser({ phone, registerSource: "phone" });
     const token = fastify.jwt.sign({ id: user.id, phone: user.phone });
-    const member = await getMemberInfo2(user.id) || { level: 0, remainTimes: 0, expireTime: null };
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
       token,
@@ -4779,9 +4659,9 @@ async function userRoutes(fastify) {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
     const { id } = request.user;
-    const user = await findUserByPhone2(id);
+    const user = await findUserByPhone(id);
     if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
-    const member = await getMemberInfo2(user.id) || { level: 0, remainTimes: 0, expireTime: null };
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
       user: {
@@ -4800,7 +4680,7 @@ async function userRoutes(fastify) {
   }, async (request, reply) => {
     const { id } = request.user;
     const { nickname } = request.body;
-    const user = await findUserByPhone2(id);
+    const user = await findUserByPhone(id);
     if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
     return {
       success: true,
@@ -4816,7 +4696,7 @@ async function userRoutes(fastify) {
       registerSource: "wechat"
     });
     const token = fastify.jwt.sign({ id: user.id, phone: user.phone });
-    const member = await getMemberInfo2(user.id) || { level: 0, remainTimes: 0, expireTime: null };
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
       token,
@@ -4835,7 +4715,7 @@ async function userRoutes(fastify) {
   }, async (request, reply) => {
     const { id } = request.user;
     const { level } = request.body;
-    const user = await findUserByPhone2(id);
+    const user = await findUserByPhone(id);
     if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
     const PLAN = {
       1: { name: "\u5B63VIP", days: 90, times: 10 },
@@ -4852,8 +4732,66 @@ async function userRoutes(fastify) {
   });
 }
 
+// src/db/mockStore.ts
+import { v4 as uuidv4 } from "uuid";
+var users = /* @__PURE__ */ new Map();
+var verifyCodes2 = /* @__PURE__ */ new Map();
+var memberInfo = /* @__PURE__ */ new Map();
+var seedUsers = [
+  { phone: "13800138001", nickname: "\u6D4B\u8BD5\u7528\u6237A", password: "qxt123456", memberLevel: 1 },
+  { phone: "13800138002", nickname: "\u6D4B\u8BD5\u7528\u6237B", password: "qxt123456", memberLevel: 2 },
+  { phone: "13800138003", nickname: "\u6D4B\u8BD5\u7528\u6237C", password: "qxt123456", memberLevel: 0 },
+  { phone: "13800138004", nickname: "\u6D4B\u8BD5\u7528\u6237D", password: "qxt123456", memberLevel: 0 },
+  { phone: "13800138888", nickname: "\u9ED1\u91D1\u7528\u6237", password: "qxt123456", memberLevel: 3 }
+];
+for (const u of seedUsers) {
+  users.set(u.phone, {
+    id: uuidv4(),
+    phone: u.phone,
+    nickname: u.nickname,
+    password: u.password,
+    memberLevel: u.memberLevel,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  memberInfo.set(u.phone, {
+    memberLevel: u.memberLevel,
+    remainCount: u.memberLevel === 1 ? 10 : u.memberLevel === 2 ? 20 : u.memberLevel === 3 ? 50 : 0,
+    expireDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3).toISOString(),
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+  });
+}
+users.set("13800138000", {
+  id: uuidv4(),
+  phone: "13800138000",
+  nickname: "\u6D4B\u8BD5\u7528\u6237",
+  password: "123456",
+  // 真实项目必须 bcrypt
+  memberLevel: 0,
+  createdAt: (/* @__PURE__ */ new Date()).toISOString()
+});
+memberInfo.set("13800138000", {
+  memberLevel: 0,
+  remainCount: 0,
+  expireDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3).toISOString(),
+  lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+});
+function setVerifyCode2(phone, code, expiresMs = 10 * 60 * 1e3) {
+  const entry = { code, expiresAt: Date.now() + expiresMs, used: false };
+  verifyCodes2.set(phone, entry);
+  console.log(`\u{1F4F1} \u9A8C\u8BC1\u7801 ${phone} -> ${code}\uFF08Mock\u6A21\u5F0F\uFF0C\u4EC5\u5F00\u53D1\u73AF\u5883\u663E\u793A\uFF09`);
+}
+function consumeVerifyCode2(phone, code) {
+  if (code === "123456") return true;
+  const entry = verifyCodes2.get(phone);
+  if (!entry) return false;
+  if (entry.used) return false;
+  if (Date.now() > entry.expiresAt) return false;
+  if (entry.code !== code) return false;
+  entry.used = true;
+  return true;
+}
+
 // src/modules/verify/verify.route.ts
-init_mockStore();
 async function verifyRoutes(fastify) {
   fastify.post("/send", async (request, reply) => {
     const { phone } = request.body;
@@ -4861,7 +4799,7 @@ async function verifyRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u8BF7\u8F93\u5165\u6B63\u786E\u7684\u624B\u673A\u53F7" });
     }
     const code = process.env.NODE_ENV === "production" ? String(Math.floor(1e5 + Math.random() * 9e5)) : "123456";
-    setVerifyCode(phone, code);
+    setVerifyCode2(phone, code);
     return {
       success: true,
       message: process.env.NODE_ENV === "production" ? "\u9A8C\u8BC1\u7801\u5DF2\u53D1\u9001" : "\u5F00\u53D1\u6A21\u5F0F\uFF1A\u9A8C\u8BC1\u7801\u4E3A 123456",
@@ -4874,7 +4812,7 @@ async function verifyRoutes(fastify) {
     if (!phone || !code) {
       return reply.status(400).send({ success: false, error: "\u53C2\u6570\u4E0D\u5B8C\u6574" });
     }
-    const valid = consumeVerifyCode(phone, code);
+    const valid = consumeVerifyCode2(phone, code);
     if (!valid) {
       return reply.status(400).send({
         success: false,
@@ -4898,15 +4836,15 @@ function getMemberTypeName(level) {
   return MEMBER_PLANS[level]?.name || "\u666E\u901A\u7528\u6237";
 }
 async function deductMemberCount(phone) {
-  const user = await findUserByPhone2(phone);
+  const user = await findUserByPhone(phone);
   if (!user) return { success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" };
   const userId = user.id;
-  const current = await getMemberInfo2(userId);
+  const current = await getMemberInfo(userId);
   if (!current || current.level === 0 || (current.remainTimes || 0) <= 0) {
     return { success: false, error: "\u5269\u4F59\u6B21\u6570\u4E0D\u8DB3\uFF0C\u8BF7\u5148\u8D2D\u4E70\u4F1A\u5458", remainCount: 0, memberLevel: current?.level || 0 };
   }
-  await deductMemberRemainCount2(userId, 1);
-  const updated = await getMemberInfo2(userId);
+  await deductMemberRemainCount(userId, 1);
+  const updated = await getMemberInfo(userId);
   return {
     success: true,
     remainCount: updated?.remainTimes || 0,
@@ -4915,10 +4853,10 @@ async function deductMemberCount(phone) {
   };
 }
 async function getMemberStatus(phone) {
-  const user = await findUserByPhone2(phone);
+  const user = await findUserByPhone(phone);
   if (!user) return { success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" };
   const userId = user.id;
-  const info = await getMemberInfo2(userId);
+  const info = await getMemberInfo(userId);
   const level = info?.level || 0;
   const remainTimes = info?.remainTimes || (level === 0 ? 0 : 0);
   const expireTime = info?.expireTime || null;
@@ -4971,8 +4909,8 @@ async function memberRoutes(fastify) {
     const { phone } = request.user;
     const userId = phone;
     try {
-      const orders2 = await listOrdersByUser(userId);
-      const result = orders2.map((o) => {
+      const orders = await listOrdersByUser(userId);
+      const result = orders.map((o) => {
         const plan = MEMBER_PLANS[o.planLevel];
         return {
           orderId: o.orderId,
@@ -4997,8 +4935,8 @@ async function memberRoutes(fastify) {
   }, async (request, reply) => {
     const { phone } = request.user;
     try {
-      const orders2 = await listUserMallOrders(phone);
-      return { success: true, orders: orders2.map((o) => ({
+      const orders = await listUserMallOrders(phone);
+      return { success: true, orders: orders.map((o) => ({
         orderId: o.orderId,
         goodsId: o.goodsId,
         goodsName: o.goodsName,
@@ -5346,7 +5284,7 @@ async function webhookRoutes(fastify) {
 
 // src/modules/pay/pay.service.ts
 init_store();
-import * as crypto from "crypto";
+import * as crypto2 from "crypto";
 import { v4 as uuidv43 } from "uuid";
 var MCH_ID = process.env.WEIXIN_MCH_ID || "1745479207";
 var API_KEY = process.env.WEINXIN_PAY_API_KEY || "";
@@ -5354,13 +5292,13 @@ var APP_ID = "wxfd20b5775b2f6046";
 function signParams(params) {
   const sorted = Object.keys(params).filter((k) => params[k] !== "" && params[k] !== void 0 && params[k] !== null).sort().map((k) => `${k}=${params[k]}`).join("&");
   const signStr = sorted + "&key=" + API_KEY;
-  return crypto.createHash("md5").update(signStr, "utf8").digest("hex").toUpperCase();
+  return crypto2.createHash("md5").update(signStr, "utf8").digest("hex").toUpperCase();
 }
 async function unifiedOrder(params) {
   const { openid, planId, memberLevel, totalFee, userId } = params;
   const orderId = "O" + Date.now() + uuidv43().replace(/-/g, "").slice(0, 12).toUpperCase();
   try {
-    await createOrder2(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee);
+    await createOrder(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee);
     console.log("[Pay] \u8BA2\u5355\u5DF2\u521B\u5EFA:", orderId);
   } catch (e) {
     console.error("[Pay] \u521B\u5EFA\u8BA2\u5355\u5931\u8D25:", e.message);
@@ -5439,11 +5377,11 @@ async function handlePayCallback(xmlBody) {
     if (params.result_code === "SUCCESS") {
       const outTradeNo = params.out_trade_no || "";
       const transactionId = params.transaction_id || "";
-      await updateOrderPaid2(outTradeNo, transactionId, xmlBody);
+      await updateOrderPaid(outTradeNo, transactionId, xmlBody);
       if (attach && attach.memberLevel !== void 0 && attach.userId) {
         if (attach.memberLevel === 0 && attach.reportId) {
-          const { saveReport: saveReport3 } = await Promise.resolve().then(() => (init_store(), store_exports));
-          await saveReport3(attach.reportId, {
+          const { saveReport: saveReport2 } = await Promise.resolve().then(() => (init_store(), store_exports));
+          await saveReport2(attach.reportId, {
             userId: attach.userId,
             isLocked: false,
             orderId: outTradeNo
@@ -5653,7 +5591,7 @@ async function mallRoutes(fastify) {
 // src/index.ts
 init_mysql();
 init_store();
-var __dirname = path2.dirname(fileURLToPath2(import.meta.url));
+var __dirname = path3.dirname(fileURLToPath2(import.meta.url));
 var app = Fastify({
   logger: true
 });
@@ -5695,13 +5633,14 @@ app.addContentTypeParser("text/xml", { parseAs: "string" }, (req, body, done) =>
     done(err, "");
   }
 });
-var PROJECT_ROOT = process.env.NODE_ENV === "production" ? "/app" : path2.join(__dirname, "..");
-var PUBLIC_DIR = process.env.NODE_ENV === "production" ? "/app/public/pdfs" : path2.join(PROJECT_ROOT, "public/pdfs");
-var STATIC_DIR = process.env.NODE_ENV === "production" ? "/app/public" : path2.join(PROJECT_ROOT, "public");
+var PROJECT_ROOT = process.env.NODE_ENV === "production" ? "/app" : path3.join(__dirname, "..");
+var PUBLIC_DIR = process.env.NODE_ENV === "production" ? "/app/public/pdfs" : path3.join(PROJECT_ROOT, "public/pdfs");
+var STATIC_DIR = process.env.NODE_ENV === "production" ? "/app/public" : path3.join(PROJECT_ROOT, "public");
 try {
-  const fs2 = await import("fs");
-  fs2.mkdirSync(PUBLIC_DIR, { recursive: true });
-  fs2.mkdirSync(STATIC_DIR, { recursive: true });
+  const fs3 = await import("fs");
+  fs3.mkdirSync(PUBLIC_DIR, { recursive: true });
+  fs3.mkdirSync(STATIC_DIR, { recursive: true });
+  fs3.mkdirSync("/app/uploads/evidence", { recursive: true });
 } catch (e) {
   console.warn("[Static] \u76EE\u5F55\u521B\u5EFA\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\u6216\u65E0\u6743\u9650\uFF09:", String(e));
 }
@@ -5712,13 +5651,19 @@ try {
     decorateReply: false
   });
   console.log("[Static] PDF\u9759\u6001\u6587\u4EF6\u5DF2\u6CE8\u518C:", PUBLIC_DIR);
+  await app.register(staticFiles, {
+    root: "/app/uploads/evidence",
+    prefix: "/uploads/evidence",
+    decorateReply: false
+  });
+  console.log("[Static] \u8BC1\u636E\u6587\u4EF6\u9759\u6001\u670D\u52A1\u5DF2\u6CE8\u518C: /app/uploads/evidence");
 } catch (e) {
   console.warn("[Static] PDF\u9759\u6001\u6587\u4EF6\u6CE8\u518C\u5931\u8D25\uFF0C\u670D\u52A1\u7EE7\u7EED\u8FD0\u884C:", String(e));
 }
 app.get("/privacy", async (_req, reply) => {
-  const fs2 = await import("fs");
-  const privacyPath = path2.join(STATIC_DIR, "privacy.html");
-  const html = fs2.readFileSync(privacyPath, "utf-8");
+  const fs3 = await import("fs");
+  const privacyPath = path3.join(STATIC_DIR, "privacy.html");
+  const html = fs3.readFileSync(privacyPath, "utf-8");
   return reply.type("text/html").send(html);
 });
 await app.register(evidenceRoutes, { prefix: "/api/v1/evidence", bodyLimit: 25 * 1024 * 1024 });

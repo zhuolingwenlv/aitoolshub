@@ -1,69 +1,95 @@
 /**
- * 证据分析路由
- * POST /api/v1/evidence/analyze
- * POST /api/v1/evidence/upload
+ * 证据分析路由 — 真实文件存储版（方案A·废弃Mock URL）
+ * POST /api/v1/evidence/upload  — 接收multipart文件，存盘
+ * POST /api/v1/evidence/analyze  — 分析证据文本
  */
 import { analyzeEvidence } from './evidence.service.js'
 import { scanBannedWords } from '../../data/banned-words.js'
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+
+const UPLOAD_DIR = '/app/uploads/evidence'
+
+// 确保上传目录存在
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+  }
+} catch (e) {
+  console.error('[Evidence] 创建上传目录失败:', UPLOAD_DIR)
+}
 
 export async function evidenceRoutes(fastify) {
 
-  // 证据文件上传
-  // 支持两种格式：
-  // 1. multipart/form-data（微信 wx.uploadFile）
-  // 2. application/json with base64（绕过某些平台的 multipart 限制）
+  // 证据文件上传（方案A：真实存盘）
   fastify.post('/upload', async (request, reply) => {
     try {
-      let fileId, base64Data, mimeType
+      let fileBuffer = null, originalName = '', mimeType = 'image/jpeg'
+      let typeId = '', typeLabel = '', scene = ''
 
-      // 方式1：multipart（已注册 @fastify/multipart）
       if (request.isMultipart()) {
         const parts = request.parts()
         for await (const part of parts) {
           if (part.type === 'file') {
-            const buffer = await part.toBuffer()
-            base64Data = buffer.toString('base64')
+            fileBuffer = await part.toBuffer()
             mimeType = part.mimetype || 'image/jpeg'
-            fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-            break
+            originalName = part.filename || 'upload.jpg'
+          } else if (part.fieldname === 'typeId') {
+            typeId = String(part.value || '')
+          } else if (part.fieldname === 'typeLabel') {
+            typeLabel = String(part.value || '')
+          } else if (part.fieldname === 'scene') {
+            scene = String(part.value || '')
           }
         }
-      } else {
-        // 方式2：JSON base64
-        const body = request.body || {}
-        base64Data = body.base64
-        mimeType = body.mimeType || 'image/jpeg'
-        fileId = body.fileId || `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       }
 
-      if (!base64Data) {
-        return reply.status(400).send({ success: false, error: '缺少文件数据' })
+      if (!fileBuffer || fileBuffer.length === 0) {
+        return reply.status(400).send({ success: false, error: '文件为空，请重新选择' })
       }
 
-      // 实际场景应存储到云存储（微信云开发/OSS/S3）
-      // 这里返回模拟 URL，分析功能在 /analyze 端完成
-      const url = `https://storage.example.com/evidence/${fileId}`
+      // 安全检查：拒绝超大文件（25MB）
+      if (fileBuffer.length > 25 * 1024 * 1024) {
+        return reply.status(400).send({ success: false, error: '文件不能超过25MB，请压缩后上传' })
+      }
+
+      // 生成唯一文件名
+      const hash = crypto.createHash('md5').update(fileBuffer).digest('hex').slice(0, 12)
+      const ext = path.extname(originalName) || '.jpg'
+      const fileName = `${Date.now()}_${hash}${ext}`
+      const filePath = path.join(UPLOAD_DIR, fileName)
+
+      // 写入磁盘
+      fs.writeFileSync(filePath, fileBuffer)
+      console.log('[Evidence] 文件已保存:', filePath, `${(fileBuffer.length / 1024).toFixed(1)}KB`)
+
+      // 返回可访问URL（通过静态文件服务）
+      const url = `/uploads/evidence/${fileName}`
+      const fileId = `ev_${Date.now()}_${hash}`
+
       return {
         success: true,
         url,
         fileId,
         mimeType,
-        // 前端 showAnalysisResult 需要这些字段
+        typeId,
+        typeLabel,
         result: {
           url,
-          quality: '⚠️ 待评估',
-          level: 'C级 ★★★',
-          note: '文件已上传，请稍后分析',
-          keyTerms: [],
+          quality: '✅ 已上传',
+          level: '待分析',
+          note: '文件已成功上传至服务器，报告生成时将自动引用',
+          keyTerms: [typeLabel || '证据', originalName],
         },
       }
     } catch (err) {
-      console.error('上传失败:', err)
-      return reply.status(500).send({ success: false, error: '上传失败' })
+      console.error('[Evidence] 上传失败:', err)
+      return reply.status(500).send({ success: false, error: '上传失败，请稍后重试' })
     }
   })
 
-  // 证据分析
+  // 证据分析（文本分析，不涉及图片）
   fastify.post('/analyze', async (request, reply) => {
     const body = request.body || {}
 
@@ -77,7 +103,6 @@ export async function evidenceRoutes(fastify) {
       claim_counterparty,
     } = body
 
-    // 参数校验
     if (!evidence_type) {
       return reply.status(400).send({
         success: false,
@@ -93,7 +118,6 @@ export async function evidenceRoutes(fastify) {
       })
     }
 
-    // 优先使用 text 参数（用户描述/图片描述），其次用 file_url
     const inputText = (text || file_url || '').trim()
     if (!inputText) {
       return reply.status(400).send({
@@ -102,7 +126,6 @@ export async function evidenceRoutes(fastify) {
       })
     }
 
-    // 禁语扫描
     const scan = scanBannedWords(inputText)
     if (scan.blocked) {
       return reply.status(400).send({
@@ -119,21 +142,6 @@ export async function evidenceRoutes(fastify) {
         scene,
       })
 
-      // 如果传入了 draft_id，可选保存到 mockStore
-      if (draft_id) {
-        try {
-          const { mockDb } = await import('../../db/mockStore.js')
-          const existing = mockDb.evidenceAnalysis.get(draft_id) || {}
-          mockDb.evidenceAnalysis.set(draft_id, {
-            ...existing,
-            [evidence_type]: result,
-            updatedAt: new Date().toISOString(),
-          })
-        } catch (_) {
-          // mockStore 可能没有 evidenceAnalysis Map，降级不报错
-        }
-      }
-
       return {
         success: true,
         result,
@@ -145,5 +153,14 @@ export async function evidenceRoutes(fastify) {
         error: '证据分析失败，请稍后重试',
       })
     }
+  })
+
+  // 静态文件服务：提供上传文件的访问
+  fastify.get('/file/*', async (request, reply) => {
+    const filePath = path.join(UPLOAD_DIR, path.basename(request.params['*'] || ''))
+    if (!fs.existsSync(filePath)) {
+      return reply.status(404).send({ error: '文件不存在' })
+    }
+    return reply.sendFile(path.basename(filePath), UPLOAD_DIR)
   })
 }

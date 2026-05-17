@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt'
 import multipart from '@fastify/multipart'
 import staticFiles from '@fastify/static'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { config } from './config/index.js'
 import { evidenceRoutes } from './modules/evidence/evidence.route.js'
@@ -88,6 +89,8 @@ try {
   const fs = await import('fs')
   fs.mkdirSync(PUBLIC_DIR, { recursive: true })
   fs.mkdirSync(STATIC_DIR, { recursive: true })
+  // 证据上传目录（容器持久化存储）
+  fs.mkdirSync('/app/uploads/evidence', { recursive: true })
 } catch (e) {
   console.warn('[Static] 目录创建失败（可能已存在或无权限）:', String(e))
 }
@@ -99,6 +102,14 @@ try {
     decorateReply: false,
   })
   console.log('[Static] PDF静态文件已注册:', PUBLIC_DIR)
+
+  // 证据上传静态文件服务
+  await app.register(staticFiles, {
+    root: '/app/uploads/evidence',
+    prefix: '/uploads/evidence',
+    decorateReply: false,
+  })
+  console.log('[Static] 证据文件静态服务已注册: /app/uploads/evidence')
 } catch (e) {
   console.warn('[Static] PDF静态文件注册失败，服务继续运行:', String(e))
 }
