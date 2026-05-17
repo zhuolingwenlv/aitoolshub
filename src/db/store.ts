@@ -521,7 +521,7 @@ export async function ensureTables() {
   }
   console.log('[MySQL] 八张表检查完成')
 
-  // 种子商品数据（¥198电子书 + ¥299素材库）
+  // 种子商品数据（¥166电子书 + ¥266素材库）
   const seedGoods = [
     [1, '消费者纠纷梳理与普法操作指南', 16600, 'ebook', '/images/shop-ebook.png', '', '14类纠纷场景梳理，280+页电子版汇编工具书'],
     [2, '全行业永久工具素材库', 26600, 'material', '/images/shop-material.png', '', '全行业模板合集，可编辑可导出，终身更新权益'],

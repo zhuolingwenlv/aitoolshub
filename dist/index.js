@@ -5299,10 +5299,10 @@ async function verifyRoutes(fastify) {
 init_store();
 import { v4 as uuidv42 } from "uuid";
 var MEMBER_PLANS = {
-  0: { level: 0, name: "\u666E\u901A\u7528\u6237", price: 39.8, priceDisplay: "\xA539.8", unit: "\u6B21", count: 1, period: 0, periodText: "\u6C38\u4E45\u6709\u6548", benefits: ["\u5355\u6B21\u8BCA\u65AD", "\u57FA\u7840\u62A5\u544A"] },
-  1: { level: 1, name: "\u5B63VIP", price: 198, priceDisplay: "\xA5198", unit: "\u5B63", count: 10, period: 3, periodText: "3\u4E2A\u6708", benefits: ["10\u6B21\u8BCA\u65AD", "\u4F18\u5148\u5BA2\u670D", "9\u6298\u7EED\u8D39"] },
-  2: { level: 2, name: "\u534A\u5E74SVIP", price: 598, priceDisplay: "\xA5598", unit: "\u534A\u5E74", count: 30, period: 6, periodText: "6\u4E2A\u6708", benefits: ["30\u6B21\u8BCA\u65AD", "\u7CBE\u88C5\u62A5\u544A", "\u4E13\u5C5E\u987E\u95EE", "\u4F18\u5148\u5BA2\u670D"] },
-  3: { level: 3, name: "\u9ED1\u91D1\u5E74\u5361", price: 2988, priceDisplay: "\xA52988", unit: "\u5E74", count: 50, period: 12, periodText: "12\u4E2A\u6708", benefits: ["50\u6B21\u8BCA\u65AD", "\u5178\u85CF\u62A5\u544A", "\u987E\u95EE\u590D\u6838", "\u4F18\u5148\u5BA2\u670D", "\u4E13\u5C5E\u901A\u9053"] }
+  0: { level: 0, name: "\u666E\u901A\u7528\u6237", price: 36.8, priceDisplay: "\xA536.8", unit: "\u6B21", count: 1, period: 0, periodText: "\u6C38\u4E45\u6709\u6548", benefits: ["\u5355\u6B21\u8BCA\u65AD", "\u57FA\u7840\u62A5\u544A"] },
+  1: { level: 1, name: "\u5B63VIP", price: 168, priceDisplay: "\xA5168", unit: "\u5B63", count: 10, period: 3, periodText: "3\u4E2A\u6708", benefits: ["10\u6B21\u8BCA\u65AD", "\u4F18\u5148\u5BA2\u670D", "9\u6298\u7EED\u8D39"] },
+  2: { level: 2, name: "\u534A\u5E74SVIP", price: 566, priceDisplay: "\xA5566", unit: "\u534A\u5E74", count: 30, period: 6, periodText: "6\u4E2A\u6708", benefits: ["30\u6B21\u8BCA\u65AD", "\u7CBE\u88C5\u62A5\u544A", "\u4E13\u5C5E\u987E\u95EE", "\u4F18\u5148\u5BA2\u670D"] },
+  3: { level: 3, name: "\u9ED1\u91D1\u5E74\u5361", price: 2666, priceDisplay: "\xA52666", unit: "\u5E74", count: 50, period: 12, periodText: "12\u4E2A\u6708", benefits: ["50\u6B21\u8BCA\u65AD", "\u5178\u85CF\u62A5\u544A", "\u987E\u95EE\u590D\u6838", "\u4F18\u5148\u5BA2\u670D", "\u4E13\u5C5E\u901A\u9053"] }
 };
 function getMemberTypeName(level) {
   return MEMBER_PLANS[level]?.name || "\u666E\u901A\u7528\u6237";
@@ -5538,14 +5538,14 @@ async function giftCount(id, count, reason) {
 }
 async function getAdminOrderList({ page = 1, pageSize = 20, orderId, phone, productType, payStatus, startDate, endDate }) {
   const mockOrders = [
-    { id: "o001", orderNo: "WX202605130001", phone: "150****9885", productType: "svip_year", productName: "\u9ED1\u91D1\u5E74\u5361", amount: 299, payStatus: "paid", payTime: "2026-05-13 10:00", transactionId: "wx1234567890" },
-    { id: "o002", orderNo: "WX202605120002", phone: "138****2341", productType: "vip_quarter", productName: "\u5B63VIP", amount: 99, payStatus: "paid", payTime: "2026-05-12 15:30", transactionId: "wx1234567891" },
-    { id: "o003", orderNo: "WX202605110003", phone: "159****8762", productType: "single", productName: "\u5355\u6B21\u68B3\u7406", amount: 19.9, payStatus: "refunded", payTime: "2026-05-11 09:15", transactionId: "wx1234567892" }
+    { id: "o001", orderNo: "WX202605130001", phone: "150****9885", productType: "svip_year", productName: "\u9ED1\u91D1\u5E74\u5361", amount: 2666, payStatus: "paid", payTime: "2026-05-13 10:00", transactionId: "wx1234567890" },
+    { id: "o002", orderNo: "WX202605120002", phone: "138****2341", productType: "vip_quarter", productName: "\u5B63VIP", amount: 168, payStatus: "paid", payTime: "2026-05-12 15:30", transactionId: "wx1234567891" },
+    { id: "o003", orderNo: "WX202605110003", phone: "159****8762", productType: "single", productName: "\u5355\u6B21\u68B3\u7406", amount: 36.8, payStatus: "refunded", payTime: "2026-05-11 09:15", transactionId: "wx1234567892" }
   ];
   return { list: mockOrders, total: 3, page, pageSize };
 }
 async function getAdminOrderDetail(id) {
-  return { id, orderNo: "WX202605130001", amount: 299, transactionId: "wx1234567890", payStatus: "paid", userId: "u001" };
+  return { id, orderNo: "WX202605130001", amount: 2666, transactionId: "wx1234567890", payStatus: "paid", userId: "u001" };
 }
 async function createRefund(orderId, reason, operator) {
   console.log(`[Admin] \u8BA2\u5355${orderId}\u9000\u6B3E, \u539F\u56E0: ${reason}, \u64CD\u4F5C\u4EBA: ${operator}`);
@@ -5559,7 +5559,7 @@ async function getDashboardStats() {
     todayOrders: 5,
     todayReports: 8,
     totalMembers: 156,
-    todayRevenue: 598,
+    todayRevenue: 566,
     monthRevenue: 12450
   };
 }
@@ -5776,7 +5776,7 @@ async function webhookRoutes(fastify) {
     const intent = matchIntent(userMessage);
     const replies = {
       "\u67E5\u8BE2\u62A5\u544A": "\u8BF7\u544A\u8BC9\u6211\u60A8\u7684\u624B\u673A\u53F7\uFF0C\u6211\u5E2E\u60A8\u67E5\u8BE2\u62A5\u544A\u8FDB\u5EA6\u3002",
-      "\u5F00\u901A\u4F1A\u5458": "\u60A8\u53EF\u4EE5\u5728\u542F\u4FE1\u901A\u5C0F\u7A0B\u5E8F \u2192 \u6743\u76CA\u4E2D\u5FC3\u5F00\u901A\u4F1A\u5458\uFF0C\u5B63VIP\u4EC5\xA5198/10\u6B21\u3002\u70B9\u51FB\u4E86\u89E3\u8BE6\u60C5 \u{1F449} https://...",
+      "\u5F00\u901A\u4F1A\u5458": "\u60A8\u53EF\u4EE5\u5728\u542F\u4FE1\u901A\u5C0F\u7A0B\u5E8F \u2192 \u6743\u76CA\u4E2D\u5FC3\u5F00\u901A\u4F1A\u5458\uFF0C\u5B63VIP\u4EC5\xA5168/10\u6B21\u3002\u70B9\u51FB\u4E86\u89E3\u8BE6\u60C5 \u{1F449} https://...",
       "\u9000\u6B3E\u95EE\u9898": "\u60A8\u597D\uFF01\u672A\u89E3\u9501\u7684\u62A5\u544A\u53EF\u7533\u8BF7\u9000\u6B3E\uFF0C\u8BF7\u8054\u7CFB\u9ED1\u91D1\u4E13\u5C5E\u5BA2\u670D\u5904\u7406\u3002",
       "\u8054\u7CFB\u4EBA\u5DE5": "\u597D\u7684\uFF0C\u5DF2\u4E3A\u60A8\u8F6C\u63A5\u4EBA\u5DE5\u5BA2\u670D\uFF0C\u8BF7\u7A0D\u5019\u3002",
       "\u62A5\u544A\u672A\u751F\u6210": "\u62B1\u6B49\u7ED9\u60A8\u5E26\u6765\u4E0D\u4FBF\uFF01\u62A5\u544A\u751F\u6210\u901A\u5E38\u9700\u89813-5\u5206\u949F\u3002\u8BF7\u63D0\u4F9B\u624B\u673A\u53F7\uFF0C\u6211\u5E2E\u60A8\u6838\u67E5\u8FDB\u5EA6\u3002",

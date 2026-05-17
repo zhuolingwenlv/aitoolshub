@@ -1,4 +1,4 @@
-// 商城路由（指引商城 ¥198电子书 + ¥299素材库）
+// 商城路由（指引商城 ¥166电子书 + ¥266素材库）
 import { listGoods, getGoods, createMallOrder, getMallOrder, updateMallOrderPaid } from '../../db/store.js'
 import { unifiedOrder } from '../pay/pay.service.js'
 

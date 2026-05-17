@@ -52,16 +52,16 @@ export async function giftCount(id, count, reason) {
 export async function getAdminOrderList({ page = 1, pageSize = 20, orderId, phone, productType, payStatus, startDate, endDate }) {
   // TODO: SELECT * FROM orders WHERE ... LIMIT offset, pageSize
   const mockOrders = [
-    { id: 'o001', orderNo: 'WX202605130001', phone: '150****9885', productType: 'svip_year', productName: '黑金年卡', amount: 299, payStatus: 'paid', payTime: '2026-05-13 10:00', transactionId: 'wx1234567890' },
-    { id: 'o002', orderNo: 'WX202605120002', phone: '138****2341', productType: 'vip_quarter', productName: '季VIP', amount: 99, payStatus: 'paid', payTime: '2026-05-12 15:30', transactionId: 'wx1234567891' },
-    { id: 'o003', orderNo: 'WX202605110003', phone: '159****8762', productType: 'single', productName: '单次梳理', amount: 19.9, payStatus: 'refunded', payTime: '2026-05-11 09:15', transactionId: 'wx1234567892' },
+    { id: 'o001', orderNo: 'WX202605130001', phone: '150****9885', productType: 'svip_year', productName: '黑金年卡', amount: 2666, payStatus: 'paid', payTime: '2026-05-13 10:00', transactionId: 'wx1234567890' },
+    { id: 'o002', orderNo: 'WX202605120002', phone: '138****2341', productType: 'vip_quarter', productName: '季VIP', amount: 168, payStatus: 'paid', payTime: '2026-05-12 15:30', transactionId: 'wx1234567891' },
+    { id: 'o003', orderNo: 'WX202605110003', phone: '159****8762', productType: 'single', productName: '单次梳理', amount: 36.8, payStatus: 'refunded', payTime: '2026-05-11 09:15', transactionId: 'wx1234567892' },
   ];
   return { list: mockOrders, total: 3, page, pageSize };
 }
 
 export async function getAdminOrderDetail(id) {
   // TODO: SELECT * FROM orders WHERE id = ?
-  return { id, orderNo: 'WX202605130001', amount: 299, transactionId: 'wx1234567890', payStatus: 'paid', userId: 'u001' };
+  return { id, orderNo: 'WX202605130001', amount: 2666, transactionId: 'wx1234567890', payStatus: 'paid', userId: 'u001' };
 }
 
 export async function createRefund(orderId, reason, operator) {
@@ -80,7 +80,7 @@ export async function getDashboardStats() {
   // TODO: 真实数据从数据库聚合查询
   return {
     todayUsers: 12, todayOrders: 5, todayReports: 8, totalMembers: 156,
-    todayRevenue: 598, monthRevenue: 12450,
+    todayRevenue: 566, monthRevenue: 12450,
   };
 }
 

@@ -14,10 +14,10 @@ import {
 // 会员权益配置
 // ============================================================
 export const MEMBER_PLANS = {
-  0: { level: 0, name: '普通用户',   price: 39.8,  priceDisplay: '¥39.8',  unit: '次',  count: 1,  period: 0,   periodText: '永久有效', benefits: ['单次诊断', '基础报告'] },
-  1: { level: 1, name: '季VIP',     price: 198,   priceDisplay: '¥198',   unit: '季',  count: 10, period: 3,   periodText: '3个月',    benefits: ['10次诊断', '优先客服', '9折续费'] },
-  2: { level: 2, name: '半年SVIP',  price: 598,   priceDisplay: '¥598',   unit: '半年',count: 30, period: 6,   periodText: '6个月',    benefits: ['30次诊断', '精装报告', '专属顾问', '优先客服'] },
-  3: { level: 3, name: '黑金年卡',  price: 2988,  priceDisplay: '¥2988',  unit: '年',  count: 50, period: 12,  periodText: '12个月',   benefits: ['50次诊断', '典藏报告', '顾问复核', '优先客服', '专属通道'] },
+  0: { level: 0, name: '普通用户',   price: 36.8,  priceDisplay: '¥36.8',  unit: '次',  count: 1,  period: 0,   periodText: '永久有效', benefits: ['单次诊断', '基础报告'] },
+  1: { level: 1, name: '季VIP',     price: 168,   priceDisplay: '¥168',   unit: '季',  count: 10, period: 3,   periodText: '3个月',    benefits: ['10次诊断', '优先客服', '9折续费'] },
+  2: { level: 2, name: '半年SVIP',  price: 566,   priceDisplay: '¥566',   unit: '半年',count: 30, period: 6,   periodText: '6个月',    benefits: ['30次诊断', '精装报告', '专属顾问', '优先客服'] },
+  3: { level: 3, name: '黑金年卡',  price: 2666,  priceDisplay: '¥2666',  unit: '年',  count: 50, period: 12,  periodText: '12个月',   benefits: ['50次诊断', '典藏报告', '顾问复核', '优先客服', '专属通道'] },
 } as const
 
 function calcExpireDate(level: number, fromDate: Date = new Date()): string {
