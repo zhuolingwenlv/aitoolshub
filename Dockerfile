@@ -7,10 +7,8 @@ COPY package.json package-lock.json ./
 RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/ \
     --no-audit --no-fund --prefer-offline
 
-# 安装中文字体（PDF生成用）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    fonts-wqy-zenhei && \
-    rm -rf /var/lib/apt/lists/*
+# 拷贝中文字体（PDF生成用 — 提交在fonts/目录下）
+COPY fonts/ /app/fonts/
 
 # 拷贝所有代码
 COPY . .
