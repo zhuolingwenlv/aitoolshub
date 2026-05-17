@@ -5233,7 +5233,28 @@ async function userRoutes(fastify) {
   });
   fastify.post("/wx-login", async (request, reply) => {
     const { code, nickname, avatar, gender } = request.body;
-    const openid = `wx_${nickname || "guest"}_${Date.now()}`;
+    let openid = "";
+    if (code && code !== "test123") {
+      try {
+        const appid = process.env.WECHAT_APPID || "wxfd20b5775b2f6046";
+        const secret = process.env.WECHAT_SECRET || "";
+        const wxRes = await fetch(
+          `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`
+        );
+        const wxData = await wxRes.json();
+        if (wxData.openid) {
+          openid = wxData.openid;
+          console.log("[wx-login] \u5FAE\u4FE1openid\u83B7\u53D6\u6210\u529F:", openid.slice(0, 10) + "...");
+        } else {
+          console.error("[wx-login] \u5FAE\u4FE1\u8FD4\u56DE\u9519\u8BEF:", wxData.errcode, wxData.errmsg);
+        }
+      } catch (e) {
+        console.error("[wx-login] \u8C03\u7528\u5FAE\u4FE1API\u5931\u8D25:", e.message);
+      }
+    }
+    if (!openid) {
+      openid = `wx_${nickname || "guest"}_${Date.now()}`;
+    }
     const user = await findOrCreateUser({
       openid,
       nickname: nickname || "\u5FAE\u4FE1\u7528\u6237",
