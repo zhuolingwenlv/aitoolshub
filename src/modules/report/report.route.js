@@ -278,3 +278,23 @@ function filterBlur(report) {
   r._watermark = '【模糊预览版 · 付费解锁高清完整报告】'
   return r
 }
+
+  // 诊断：LLM连通性测试
+  fastify.get('/admin/llm-test', async (request, reply) => {
+    const axios = (await import('axios')).default
+    const key = process.env.SILICONFLOW_API_KEY || ''
+    if (!key) return { ok: false, error: 'SILICONFLOW_API_KEY 未配置' }
+    try {
+      const res = await axios.post('https://api.siliconflow.cn/v1/chat/completions', {
+        model: 'deepseek-ai/DeepSeek-V3-0324',
+        messages: [{ role: 'user', content: '说你好' }],
+        max_tokens: 10,
+      }, {
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        timeout: 15000,
+      })
+      return { ok: true, status: res.status, reply: res.data?.choices?.[0]?.message?.content?.slice(0,50) }
+    } catch (e) {
+      return { ok: false, error: e.message, code: e.code, stack: e.stack?.slice(0,300) }
+    }
+  })

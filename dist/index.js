@@ -1483,8 +1483,8 @@ try {
 } catch (e) {
   console.error("[Evidence] \u521B\u5EFA\u4E0A\u4F20\u76EE\u5F55\u5931\u8D25:", UPLOAD_DIR);
 }
-async function evidenceRoutes(fastify) {
-  fastify.post("/upload", async (request, reply) => {
+async function evidenceRoutes(fastify2) {
+  fastify2.post("/upload", async (request, reply) => {
     try {
       let fileBuffer = null, originalName = "", mimeType = "image/jpeg";
       let typeId = "", typeLabel = "", scene = "";
@@ -1538,7 +1538,7 @@ async function evidenceRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u4E0A\u4F20\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" });
     }
   });
-  fastify.post("/analyze", async (request, reply) => {
+  fastify2.post("/analyze", async (request, reply) => {
     const body = request.body || {};
     const {
       draft_id,
@@ -1595,7 +1595,7 @@ async function evidenceRoutes(fastify) {
       });
     }
   });
-  fastify.get("/file/*", async (request, reply) => {
+  fastify2.get("/file/*", async (request, reply) => {
     const filePath = path.join(UPLOAD_DIR, path.basename(request.params["*"] || ""));
     if (!fs.existsSync(filePath)) {
       return reply.status(404).send({ error: "\u6587\u4EF6\u4E0D\u5B58\u5728" });
@@ -4868,8 +4868,8 @@ setInterval(() => {
 
 // src/modules/report/report.route.js
 init_store();
-async function reportRoutes(fastify) {
-  fastify.post("/generate", async (request, reply) => {
+async function reportRoutes(fastify2) {
+  fastify2.post("/generate", async (request, reply) => {
     const body = request.body || {};
     const { scene, subType, amount, focus, status, evidence = [], memberLevel = 0, memo = "" } = body;
     if (!scene || !status) {
@@ -4886,7 +4886,7 @@ async function reportRoutes(fastify) {
     try {
       const token = request.headers.authorization?.replace("Bearer ", "");
       if (token) {
-        const decoded = fastify.jwt.verify(token);
+        const decoded = fastify2.jwt.verify(token);
         userId = decoded.phone || decoded.id || "anonymous";
       }
     } catch (_) {
@@ -4943,8 +4943,8 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25", reportId, detail: errMsg, stack: errStack });
     }
   });
-  fastify.get("/list", {
-    preHandler: [fastify.authenticate]
+  fastify2.get("/list", {
+    preHandler: [fastify2.authenticate]
   }, async function(request, reply) {
     try {
       var userId = request.user && request.user.phone || request.user && request.user.id || "";
@@ -4975,7 +4975,7 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
   });
-  fastify.get("/:reportId", async (request, reply) => {
+  fastify2.get("/:reportId", async (request, reply) => {
     const { reportId } = request.params || {};
     if (!reportId) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u62A5\u544AID" });
@@ -4984,7 +4984,7 @@ async function reportRoutes(fastify) {
     try {
       const token = request.headers.authorization?.replace("Bearer ", "");
       if (token) {
-        const decoded = fastify.jwt.verify(token);
+        const decoded = fastify2.jwt.verify(token);
         const { findUserByOpenid: findUserByOpenid2 } = await Promise.resolve().then(() => (init_store(), store_exports));
         const user = await findUserByOpenid2(decoded.openid || decoded.phone || "");
         userLevel = user?.memberLevel || 0;
@@ -5017,7 +5017,7 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
   });
-  fastify.post("/:reportId/share", async (request, reply) => {
+  fastify2.post("/:reportId/share", async (request, reply) => {
     const { reportId } = request.params || {};
     try {
       const draft = await getReport(reportId);
@@ -5032,8 +5032,8 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u64CD\u4F5C\u5931\u8D25" });
     }
   });
-  fastify.delete("/:reportId", {
-    preHandler: [fastify.authenticate]
+  fastify2.delete("/:reportId", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { reportId } = request.params || {};
     try {
@@ -5047,7 +5047,7 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u5220\u9664\u5931\u8D25" });
     }
   });
-  fastify.post("/:reportId/pdf", async (request, reply) => {
+  fastify2.post("/:reportId/pdf", async (request, reply) => {
     const { reportId } = request.params || {};
     try {
       const draft = await getReport(reportId);
@@ -5066,7 +5066,7 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u521B\u5EFAPDF\u4EFB\u52A1\u5931\u8D25" });
     }
   });
-  fastify.get("/pdf/:taskId", async (request, reply) => {
+  fastify2.get("/pdf/:taskId", async (request, reply) => {
     const { taskId } = request.params || {};
     const status = getPdfTaskStatus(taskId);
     if (status.status === "not_found") {
@@ -5096,11 +5096,29 @@ function filterBlur(report) {
   r._watermark = "\u3010\u6A21\u7CCA\u9884\u89C8\u7248 \xB7 \u4ED8\u8D39\u89E3\u9501\u9AD8\u6E05\u5B8C\u6574\u62A5\u544A\u3011";
   return r;
 }
+fastify.get("/admin/llm-test", async (request, reply) => {
+  const axios2 = (await import("axios")).default;
+  const key = process.env.SILICONFLOW_API_KEY || "";
+  if (!key) return { ok: false, error: "SILICONFLOW_API_KEY \u672A\u914D\u7F6E" };
+  try {
+    const res = await axios2.post("https://api.siliconflow.cn/v1/chat/completions", {
+      model: "deepseek-ai/DeepSeek-V3-0324",
+      messages: [{ role: "user", content: "\u8BF4\u4F60\u597D" }],
+      max_tokens: 10
+    }, {
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      timeout: 15e3
+    });
+    return { ok: true, status: res.status, reply: res.data?.choices?.[0]?.message?.content?.slice(0, 50) };
+  } catch (e) {
+    return { ok: false, error: e.message, code: e.code, stack: e.stack?.slice(0, 300) };
+  }
+});
 
 // src/modules/user/user.route.ts
 init_store();
-async function userRoutes(fastify) {
-  fastify.post("/send-code", async (request, reply) => {
+async function userRoutes(fastify2) {
+  fastify2.post("/send-code", async (request, reply) => {
     const { phone } = request.body;
     if (!phone || !/^1\d{10}$/.test(phone)) {
       return reply.status(400).send({ success: false, error: "\u8BF7\u8F93\u5165\u6B63\u786E\u7684\u624B\u673A\u53F7" });
@@ -5113,7 +5131,7 @@ async function userRoutes(fastify) {
       debugCode: process.env.NODE_ENV !== "production" ? code : void 0
     };
   });
-  fastify.post("/login", async (request, reply) => {
+  fastify2.post("/login", async (request, reply) => {
     const { phone, code } = request.body;
     if (!phone || !code) {
       return reply.status(400).send({ success: false, error: "\u624B\u673A\u53F7\u548C\u9A8C\u8BC1\u7801\u4E0D\u80FD\u4E3A\u7A7A" });
@@ -5124,7 +5142,7 @@ async function userRoutes(fastify) {
       }
     }
     const user = await findOrCreateUser({ phone, nickname: `\u7528\u6237${phone.slice(-4)}`, registerSource: "phone" });
-    const token = fastify.jwt.sign({ id: user.id, phone: user.phone });
+    const token = fastify2.jwt.sign({ id: user.id, phone: user.phone });
     const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
@@ -5140,7 +5158,7 @@ async function userRoutes(fastify) {
       }
     };
   });
-  fastify.post("/login-password", async (request, reply) => {
+  fastify2.post("/login-password", async (request, reply) => {
     const { phone, password } = request.body;
     if (!phone || !password) {
       return reply.status(400).send({ success: false, error: "\u624B\u673A\u53F7\u548C\u5BC6\u7801\u4E0D\u80FD\u4E3A\u7A7A" });
@@ -5149,7 +5167,7 @@ async function userRoutes(fastify) {
       return reply.status(401).send({ success: false, error: "\u5BC6\u7801\u9519\u8BEF" });
     }
     const user = await findOrCreateUser({ phone, registerSource: "phone" });
-    const token = fastify.jwt.sign({ id: user.id, phone: user.phone });
+    const token = fastify2.jwt.sign({ id: user.id, phone: user.phone });
     const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
@@ -5164,8 +5182,8 @@ async function userRoutes(fastify) {
       }
     };
   });
-  fastify.get("/profile", {
-    preHandler: [fastify.authenticate]
+  fastify2.get("/profile", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { id } = request.user;
     const user = await findUserByOpenid(id) || await findUserByPhone(id);
@@ -5184,8 +5202,8 @@ async function userRoutes(fastify) {
       }
     };
   });
-  fastify.put("/profile", {
-    preHandler: [fastify.authenticate]
+  fastify2.put("/profile", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { id } = request.user;
     const { nickname } = request.body;
@@ -5196,7 +5214,7 @@ async function userRoutes(fastify) {
       user: { id: user.id, phone: user.phone, nickname: user.nickname }
     };
   });
-  fastify.post("/wx-login", async (request, reply) => {
+  fastify2.post("/wx-login", async (request, reply) => {
     const { code, nickname, avatar, gender } = request.body;
     const openid = `wx_${nickname || "guest"}_${Date.now()}`;
     const user = await findOrCreateUser({
@@ -5204,7 +5222,7 @@ async function userRoutes(fastify) {
       nickname: nickname || "\u5FAE\u4FE1\u7528\u6237",
       registerSource: "wechat"
     });
-    const token = fastify.jwt.sign({ id: user.id, phone: user.phone });
+    const token = fastify2.jwt.sign({ id: user.id, phone: user.phone });
     const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
     return {
       success: true,
@@ -5220,8 +5238,8 @@ async function userRoutes(fastify) {
       }
     };
   });
-  fastify.post("/upgrade-member", {
-    preHandler: [fastify.authenticate]
+  fastify2.post("/upgrade-member", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { id } = request.user;
     const { level } = request.body;
@@ -5302,8 +5320,8 @@ function consumeVerifyCode2(phone, code) {
 }
 
 // src/modules/verify/verify.route.ts
-async function verifyRoutes(fastify) {
-  fastify.post("/send", async (request, reply) => {
+async function verifyRoutes(fastify2) {
+  fastify2.post("/send", async (request, reply) => {
     const { phone } = request.body;
     if (!phone || !/^1\d{10}$/.test(phone)) {
       return reply.status(400).send({ success: false, error: "\u8BF7\u8F93\u5165\u6B63\u786E\u7684\u624B\u673A\u53F7" });
@@ -5317,7 +5335,7 @@ async function verifyRoutes(fastify) {
       debugCode: process.env.NODE_ENV !== "production" ? code : void 0
     };
   });
-  fastify.post("/check", async (request, reply) => {
+  fastify2.post("/check", async (request, reply) => {
     const { phone, code } = request.body;
     if (!phone || !code) {
       return reply.status(400).send({ success: false, error: "\u53C2\u6570\u4E0D\u5B8C\u6574" });
@@ -5385,8 +5403,8 @@ async function getMemberStatus(phone) {
 
 // src/modules/member/member.route.ts
 init_store();
-async function memberRoutes(fastify) {
-  fastify.post("/prepay", async (request, reply) => {
+async function memberRoutes(fastify2) {
+  fastify2.post("/prepay", async (request, reply) => {
     const { planId, openid, reportId } = request.body || {};
     if (planId === void 0 || planId === null || !openid) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u53C2\u6570" });
@@ -5428,8 +5446,8 @@ async function memberRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u4E0B\u5355\u5931\u8D25" });
     }
   });
-  fastify.post("/deduct", {
-    preHandler: [fastify.authenticate]
+  fastify2.post("/deduct", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { phone } = request.user;
     try {
@@ -5443,8 +5461,8 @@ async function memberRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u6B21\u6570\u6263\u51CF\u5931\u8D25\uFF1A" + err.message });
     }
   });
-  fastify.get("/status", {
-    preHandler: [fastify.authenticate]
+  fastify2.get("/status", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { phone } = request.user;
     try {
@@ -5455,8 +5473,8 @@ async function memberRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u4F1A\u5458\u72B6\u6001\u5931\u8D25\uFF1A" + err.message });
     }
   });
-  fastify.get("/orders", {
-    preHandler: [fastify.authenticate]
+  fastify2.get("/orders", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { phone } = request.user;
     const userId = phone;
@@ -5482,8 +5500,8 @@ async function memberRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u8BA2\u5355\u5931\u8D25\uFF1A" + err.message });
     }
   });
-  fastify.get("/mall-orders", {
-    preHandler: [fastify.authenticate]
+  fastify2.get("/mall-orders", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { phone } = request.user;
     try {
@@ -5503,8 +5521,8 @@ async function memberRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5546\u57CE\u8BA2\u5355\u5931\u8D25" });
     }
   });
-  fastify.post("/invoice", {
-    preHandler: [fastify.authenticate]
+  fastify2.post("/invoice", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { phone } = request.user;
     const { type, title, taxNo, companyName, email, amount, orderId } = request.body;
@@ -5521,8 +5539,8 @@ async function memberRoutes(fastify) {
       invoiceId
     };
   });
-  fastify.get("/invoices", {
-    preHandler: [fastify.authenticate]
+  fastify2.get("/invoices", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     return {
       success: true,
@@ -5530,7 +5548,7 @@ async function memberRoutes(fastify) {
       message: "\u5F00\u7968\u8BB0\u5F55\u529F\u80FD\u5347\u7EA7\u4E2D\uFF0C\u5386\u53F2\u7533\u8BF7\u4ECD\u6709\u6548"
     };
   });
-  fastify.get("/plans", async (request, reply) => {
+  fastify2.get("/plans", async (request, reply) => {
     return {
       success: true,
       plans: Object.values(MEMBER_PLANS)
@@ -5630,64 +5648,64 @@ async function getDisputeTypeDistribution() {
 }
 
 // src/modules/admin/admin.route.js
-async function adminRoute(fastify) {
-  fastify.addHook("preHandler", verifyAdminToken);
-  fastify.get("/users", async (request, reply) => {
+async function adminRoute(fastify2) {
+  fastify2.addHook("preHandler", verifyAdminToken);
+  fastify2.get("/users", async (request, reply) => {
     const { page = "1", pageSize = "20", phone, nickname, memberLevel, startDate, endDate } = request.query;
     const result = await getAdminUserList({ page: parseInt(page), pageSize: parseInt(pageSize), phone, nickname, memberLevel, startDate, endDate });
     return reply.send({ code: 0, data: result });
   });
-  fastify.get("/users/:id", async (request, reply) => {
+  fastify2.get("/users/:id", async (request, reply) => {
     const user = await getAdminUserDetail(request.params.id);
     if (!user) return reply.status(404).send({ code: 404, message: "\u7528\u6237\u4E0D\u5B58\u5728" });
     return reply.send({ code: 0, data: user });
   });
-  fastify.put("/users/:id/member", async (request, reply) => {
+  fastify2.put("/users/:id/member", async (request, reply) => {
     const { memberLevel, expireTime, reason } = request.body || {};
     await updateMember(request.params.id, { memberLevel, expireTime, reason });
     return reply.send({ code: 0, message: "\u4F1A\u5458\u66F4\u65B0\u6210\u529F" });
   });
-  fastify.post("/users/:id/extend", async (request, reply) => {
+  fastify2.post("/users/:id/extend", async (request, reply) => {
     const { days, reason } = request.body || {};
     await extendMember(request.params.id, days, reason);
     return reply.send({ code: 0, message: `\u5DF2\u5EF6\u957F${days}\u5929` });
   });
-  fastify.post("/users/:id/gift", async (request, reply) => {
+  fastify2.post("/users/:id/gift", async (request, reply) => {
     const { count, reason } = request.body || {};
     await giftCount(request.params.id, count, reason);
     return reply.send({ code: 0, message: `\u5DF2\u8D60\u9001${count}\u6B21` });
   });
-  fastify.get("/orders", async (request, reply) => {
+  fastify2.get("/orders", async (request, reply) => {
     const { page = "1", pageSize = "20", orderId, phone, productType, payStatus, startDate, endDate } = request.query;
     const result = await getAdminOrderList({ page: parseInt(page), pageSize: parseInt(pageSize), orderId, phone, productType, payStatus, startDate, endDate });
     return reply.send({ code: 0, data: result });
   });
-  fastify.get("/orders/:id", async (request, reply) => {
+  fastify2.get("/orders/:id", async (request, reply) => {
     const order = await getAdminOrderDetail(request.params.id);
     if (!order) return reply.status(404).send({ code: 404, message: "\u8BA2\u5355\u4E0D\u5B58\u5728" });
     return reply.send({ code: 0, data: order });
   });
-  fastify.post("/orders/:id/refund", async (request, reply) => {
+  fastify2.post("/orders/:id/refund", async (request, reply) => {
     const { reason, operator } = request.body || {};
     await createRefund(request.params.id, reason, operator);
     return reply.send({ code: 0, message: "\u9000\u6B3E\u7533\u8BF7\u5DF2\u63D0\u4EA4" });
   });
-  fastify.get("/orders/:id/refund", async (request, reply) => {
+  fastify2.get("/orders/:id/refund", async (request, reply) => {
     const status = await getRefundStatus(request.params.id);
     return reply.send({ code: 0, data: status });
   });
-  fastify.get("/dashboard/stats", async (_request, reply) => {
+  fastify2.get("/dashboard/stats", async (_request, reply) => {
     return reply.send({ code: 0, data: await getDashboardStats() });
   });
-  fastify.get("/dashboard/revenue", async (request, reply) => {
+  fastify2.get("/dashboard/revenue", async (request, reply) => {
     const days = parseInt(request.query.days || "30");
     return reply.send({ code: 0, data: await getRevenueTrend(days) });
   });
-  fastify.get("/dashboard/users", async (request, reply) => {
+  fastify2.get("/dashboard/users", async (request, reply) => {
     const days = parseInt(request.query.days || "30");
     return reply.send({ code: 0, data: await getUserTrend(days) });
   });
-  fastify.get("/dashboard/dispute-types", async (_request, reply) => {
+  fastify2.get("/dashboard/dispute-types", async (_request, reply) => {
     return reply.send({ code: 0, data: await getDisputeTypeDistribution() });
   });
 }
@@ -5733,8 +5751,8 @@ function matchIntent(message) {
 }
 async function notifyExternalReportReady(params) {
 }
-async function webhookRoutes(fastify) {
-  fastify.post("/webhook", async (request, reply) => {
+async function webhookRoutes(fastify2) {
+  fastify2.post("/webhook", async (request, reply) => {
     const body = request.body || {};
     const platform = body.platform || request.headers["x-platform"] || "unknown";
     const eventType = body.event_type || "unknown";
@@ -5768,8 +5786,8 @@ async function webhookRoutes(fastify) {
       return { code: 500, msg: "\u5904\u7406\u5F02\u5E38" };
     }
   });
-  fastify.post("/send-message", {
-    preHandler: [fastify.authenticate]
+  fastify2.post("/send-message", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { platform, to, msg_type, content } = request.body;
     if (!platform || !to || !content) {
@@ -5782,7 +5800,7 @@ async function webhookRoutes(fastify) {
       timestamp: Date.now()
     };
   });
-  fastify.get("/member-status", async (request, reply) => {
+  fastify2.get("/member-status", async (request, reply) => {
     const { open_id } = request.query;
     if (!open_id) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11 open_id" });
@@ -5798,7 +5816,7 @@ async function webhookRoutes(fastify) {
       }
     };
   });
-  fastify.get("/oauth/callback", async (request, reply) => {
+  fastify2.get("/oauth/callback", async (request, reply) => {
     const { code, platform, state } = request.query;
     if (!code || !platform) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11 code \u6216 platform" });
@@ -5806,7 +5824,7 @@ async function webhookRoutes(fastify) {
     console.log(`\u{1F511} OAuth \u56DE\u8C03 [${platform}] code=${code}`);
     return reply.redirect(`/pages/home/index?oauth=success&platform=${platform}&state=${state}`);
   });
-  fastify.post("/chatbot", async (request, reply) => {
+  fastify2.post("/chatbot", async (request, reply) => {
     const body = request.body || {};
     const { platform, open_id, session_id, message } = body;
     const userMessage = message?.content || message?.text || "";
@@ -5837,12 +5855,12 @@ async function webhookRoutes(fastify) {
 // src/modules/pay/pay.route.ts
 init_pay_service();
 init_pay_service();
-async function payRoutes(fastify) {
-  fastify.get("/pay/test", async (_req, reply) => {
+async function payRoutes(fastify2) {
+  fastify2.get("/pay/test", async (_req, reply) => {
     return reply.send({ success: true, message: "pay route ok", time: (/* @__PURE__ */ new Date()).toISOString() });
   });
-  fastify.post("/pay/create", {
-    preHandler: [fastify.authenticate]
+  fastify2.post("/pay/create", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const body = request.body || {};
     console.log("[Pay] create called, body:", JSON.stringify(body));
@@ -5892,7 +5910,7 @@ async function payRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u652F\u4ED8\u521B\u5EFA\u5931\u8D25" });
     }
   });
-  fastify.post("/pay/callback", async (request, reply) => {
+  fastify2.post("/pay/callback", async (request, reply) => {
     console.log("[Pay] callback called, body:", JSON.stringify(request.body).slice(0, 300));
     try {
       const rawBody = request.rawBody || "";
@@ -5908,8 +5926,8 @@ async function payRoutes(fastify) {
 // src/modules/mall/mall.route.ts
 init_store();
 init_pay_service();
-async function mallRoutes(fastify) {
-  fastify.get("/goods", async (request, reply) => {
+async function mallRoutes(fastify2) {
+  fastify2.get("/goods", async (request, reply) => {
     try {
       const goods = await listGoods();
       return {
@@ -5929,7 +5947,7 @@ async function mallRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
   });
-  fastify.get("/goods/:id", async (request, reply) => {
+  fastify2.get("/goods/:id", async (request, reply) => {
     const id = parseInt(request.params.id);
     if (isNaN(id)) {
       return reply.status(400).send({ success: false, error: "\u65E0\u6548\u7684\u5546\u54C1ID" });
@@ -5951,8 +5969,8 @@ async function mallRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
   });
-  fastify.post("/order", {
-    preHandler: [fastify.authenticate]
+  fastify2.post("/order", {
+    preHandler: [fastify2.authenticate]
   }, async (request, reply) => {
     const { goodsId, openid } = request.body || {};
     const userId = request.user?.phone || request.user?.id || "";
