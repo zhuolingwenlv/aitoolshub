@@ -3482,21 +3482,46 @@ var SILICONFLOW_KEY = process.env.SILICONFLOW_API_KEY || "";
 var MODEL = "deepseek-ai/DeepSeek-V3";
 var hasKey = !!SILICONFLOW_KEY;
 var lastError = null;
+function httpsPost(url, headers, body, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    import("node:https").then((https) => {
+      const u = new URL(url);
+      const opts = {
+        hostname: u.hostname,
+        port: 443,
+        path: u.pathname + u.search,
+        method: "POST",
+        headers,
+        timeout: timeoutMs || 6e4
+      };
+      const req = https.request(opts, (res) => {
+        let data = "";
+        res.on("data", (chunk) => data += chunk);
+        res.on("end", () => resolve({ status: res.statusCode, body: data }));
+      });
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error("ETIMEDOUT"));
+      });
+      req.on("error", reject);
+      req.write(body);
+      req.end();
+    }).catch(reject);
+  });
+}
 async function callLLM(systemPrompt, userPrompt) {
   if (!hasKey) {
     lastError = "SILICONFLOW_API_KEY\u672A\u914D\u7F6E";
     return null;
   }
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3e4);
-    const res = await fetch(`${SILICONFLOW_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
+    const res = await httpsPost(
+      `${SILICONFLOW_BASE}/chat/completions`,
+      {
         "Authorization": "Bearer " + SILICONFLOW_KEY,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
+      JSON.stringify({
         model: MODEL,
         messages: [
           { role: "system", content: systemPrompt },
@@ -3506,19 +3531,17 @@ async function callLLM(systemPrompt, userPrompt) {
         max_tokens: 4096,
         response_format: { type: "json_object" }
       }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if (!res.ok) {
-      const text = await res.text();
-      lastError = "HTTP " + res.status + ": " + text.slice(0, 200);
+      6e4
+    );
+    if (res.status !== 200) {
+      lastError = "HTTP " + res.status + ": " + res.body.slice(0, 200);
       console.error("[LLM] \u975E200\u54CD\u5E94:", lastError);
       return null;
     }
-    const data = await res.json();
+    const data = JSON.parse(res.body);
     return data.choices[0].message.content;
   } catch (err) {
-    lastError = err.cause ? err.cause + " " + err.message : err.message;
+    lastError = err.cause ? err.cause + " " + err.message : err.message || String(err);
     console.error("[LLM] \u8C03\u7528\u5931\u8D25:", lastError);
     return null;
   }
@@ -5255,12 +5278,23 @@ async function userRoutes(fastify) {
     let openid = "";
     if (code && code !== "test123") {
       try {
+        const https = await import("node:https");
         const appid = process.env.WECHAT_APPID || "wxfd20b5775b2f6046";
         const secret = process.env.WECHAT_SECRET || "";
-        const wxRes = await fetch(
-          `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`
-        );
-        const wxData = await wxRes.json();
+        const wxUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+        const wxData = await new Promise((resolve, reject) => {
+          https.get(wxUrl, (res) => {
+            let body = "";
+            res.on("data", (chunk) => body += chunk);
+            res.on("end", () => {
+              try {
+                resolve(JSON.parse(body));
+              } catch (e) {
+                reject(e);
+              }
+            });
+          }).on("error", reject);
+        });
         if (wxData.openid) {
           openid = wxData.openid;
           console.log("[wx-login] \u5FAE\u4FE1openid\u83B7\u53D6\u6210\u529F:", openid.slice(0, 10) + "...");
@@ -5268,7 +5302,7 @@ async function userRoutes(fastify) {
           console.error("[wx-login] \u5FAE\u4FE1\u8FD4\u56DE\u9519\u8BEF:", wxData.errcode, wxData.errmsg);
         }
       } catch (e) {
-        console.error("[wx-login] \u8C03\u7528\u5FAE\u4FE1API\u5931\u8D25:", e.message);
+        console.error("[wx-login] \u8C03\u7528\u5FAE\u4FE1API\u5931\u8D25:", e.message || e.code || String(e));
       }
     }
     if (!openid) {

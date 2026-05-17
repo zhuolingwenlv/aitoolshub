@@ -127,15 +127,20 @@ export async function userRoutes(fastify: FastifyInstance) {
     }
 
     let openid = ''
-    // 真实微信登录：用code换openid
+    // 真实微信登录：用code换openid（Node18 https模块，不用fetch——容器里fetch不可靠）
     if (code && code !== 'test123') {
       try {
+        const https = await import('node:https')
         const appid = process.env.WECHAT_APPID || 'wxfd20b5775b2f6046'
         const secret = process.env.WECHAT_SECRET || ''
-        const wxRes = await fetch(
-          `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`
-        )
-        const wxData = await wxRes.json()
+        const wxUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`
+        const wxData = await new Promise((resolve, reject) => {
+          https.get(wxUrl, (res) => {
+            let body = ''
+            res.on('data', chunk => body += chunk)
+            res.on('end', () => { try { resolve(JSON.parse(body)) } catch(e) { reject(e) } })
+          }).on('error', reject)
+        })
         if (wxData.openid) {
           openid = wxData.openid
           console.log('[wx-login] 微信openid获取成功:', openid.slice(0,10)+'...')
@@ -143,7 +148,7 @@ export async function userRoutes(fastify: FastifyInstance) {
           console.error('[wx-login] 微信返回错误:', wxData.errcode, wxData.errmsg)
         }
       } catch(e) {
-        console.error('[wx-login] 调用微信API失败:', e.message)
+        console.error('[wx-login] 调用微信API失败:', e.message || e.code || String(e))
       }
     }
     // Mock兜底：微信API失败时用假openid（开发/测试用）

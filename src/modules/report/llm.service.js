@@ -11,20 +11,45 @@ const hasKey = !!SILICONFLOW_KEY
 // 诊断：最后一次错误
 let lastError = null
 
+/**
+ * Node.js https 模块 HTTP POST（不用 fetch——容器里 fetch 不可靠）
+ */
+function httpsPost(url, headers, body, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    import('node:https').then(https => {
+      const u = new URL(url)
+      const opts = {
+        hostname: u.hostname,
+        port: 443,
+        path: u.pathname + u.search,
+        method: 'POST',
+        headers: headers,
+        timeout: timeoutMs || 60000,
+      }
+      const req = https.request(opts, (res) => {
+        let data = ''
+        res.on('data', chunk => data += chunk)
+        res.on('end', () => resolve({ status: res.statusCode, body: data }))
+      })
+      req.on('timeout', () => { req.destroy(); reject(new Error('ETIMEDOUT')) })
+      req.on('error', reject)
+      req.write(body)
+      req.end()
+    }).catch(reject)
+  })
+}
+
 async function callLLM(systemPrompt, userPrompt) {
   if (!hasKey) { lastError = 'SILICONFLOW_API_KEY未配置'; return null }
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30000)
-
-    const res = await fetch(`${SILICONFLOW_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
+    const res = await httpsPost(
+      `${SILICONFLOW_BASE}/chat/completions`,
+      {
         'Authorization': 'Bearer ' + SILICONFLOW_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
+      JSON.stringify({
         model: MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -34,22 +59,19 @@ async function callLLM(systemPrompt, userPrompt) {
         max_tokens: 4096,
         response_format: { type: 'json_object' }
       }),
-      signal: controller.signal
-    })
+      60000
+    )
 
-    clearTimeout(timeout)
-
-    if (!res.ok) {
-      const text = await res.text()
-      lastError = 'HTTP ' + res.status + ': ' + text.slice(0, 200)
+    if (res.status !== 200) {
+      lastError = 'HTTP ' + res.status + ': ' + res.body.slice(0, 200)
       console.error('[LLM] 非200响应:', lastError)
       return null
     }
 
-    const data = await res.json()
+    const data = JSON.parse(res.body)
     return data.choices[0].message.content
   } catch (err) {
-    lastError = err.cause ? (err.cause + ' ' + err.message) : err.message
+    lastError = err.cause ? (err.cause + ' ' + err.message) : (err.message || String(err))
     console.error('[LLM] 调用失败:', lastError)
     return null
   }
