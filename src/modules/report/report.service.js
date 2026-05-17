@@ -102,8 +102,21 @@ const FOCUS_KEY_MAP = {
     '虚假承诺': 'false-advertising',
     '保证金不退': 'deposit-refund',
   },
+  esoteric: {
+    '服务效果严重不符': 'quality-issues',
+    '退款困难': 'refuse-refund',
+    '虚假宣传/夸大功效': 'false-advertising',
+    '诱导消费': 'forced-consumption',
+    '合同纠纷': 'contract-dispute',
+  },
   // ==================== 民间借贷纠纷 ====================
   civil_loan: {
+    '对方不还款': 'not-repay',
+    '利息有争议': 'interest-dispute',
+    '没有借条/凭证': 'no-contract',
+    '催收骚扰': 'harassment',
+  },
+  debt: {
     '对方不还款': 'not-repay',
     '利息有争议': 'interest-dispute',
     '没有借条/凭证': 'no-contract',

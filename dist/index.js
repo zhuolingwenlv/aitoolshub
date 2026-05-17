@@ -3627,8 +3627,21 @@ var FOCUS_KEY_MAP = {
     "\u865A\u5047\u627F\u8BFA": "false-advertising",
     "\u4FDD\u8BC1\u91D1\u4E0D\u9000": "deposit-refund"
   },
+  esoteric: {
+    "\u670D\u52A1\u6548\u679C\u4E25\u91CD\u4E0D\u7B26": "quality-issues",
+    "\u9000\u6B3E\u56F0\u96BE": "refuse-refund",
+    "\u865A\u5047\u5BA3\u4F20/\u5938\u5927\u529F\u6548": "false-advertising",
+    "\u8BF1\u5BFC\u6D88\u8D39": "forced-consumption",
+    "\u5408\u540C\u7EA0\u7EB7": "contract-dispute"
+  },
   // ==================== 民间借贷纠纷 ====================
   civil_loan: {
+    "\u5BF9\u65B9\u4E0D\u8FD8\u6B3E": "not-repay",
+    "\u5229\u606F\u6709\u4E89\u8BAE": "interest-dispute",
+    "\u6CA1\u6709\u501F\u6761/\u51ED\u8BC1": "no-contract",
+    "\u50AC\u6536\u9A9A\u6270": "harassment"
+  },
+  debt: {
     "\u5BF9\u65B9\u4E0D\u8FD8\u6B3E": "not-repay",
     "\u5229\u606F\u6709\u4E89\u8BAE": "interest-dispute",
     "\u6CA1\u6709\u501F\u6761/\u51ED\u8BC1": "no-contract",
