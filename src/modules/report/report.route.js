@@ -1,7 +1,8 @@
-// 报告路由
+// 报告路由 — MySQL存储版（P0修复）
 import { generateReport } from './report.service.js'
 import { scanBannedWords } from '../../data/banned-words.js'
 import { generatePdfTask, getPdfTaskStatus } from './pdf.service.js'
+import { saveReport, getReport as getReportDb, deleteReport, listReportsByUser } from '../../db/store.js'
 
 export async function reportRoutes(fastify) {
 
@@ -15,7 +16,7 @@ export async function reportRoutes(fastify) {
       return reply.status(400).send({ success: false, error: '缺少必填参数：scene, status' })
     }
 
-    // 禁语扫描——用户输入必须过滤
+    // 禁语扫描
     const memoScan = scanBannedWords(memo)
     if (memoScan.blocked) {
       return reply.status(400).send({
@@ -36,12 +37,29 @@ export async function reportRoutes(fastify) {
         memo,
       })
 
-      // 保存到mockStore
-      const { mockDb } = await import('../../db/mockStore.js')
-      mockDb.reports.set(report.reportId, {
-        ...report,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h
+      // 提取userId（可选，未登录也行）
+      let userId = 'anonymous'
+      try {
+        const token = request.headers.authorization?.replace('Bearer ', '')
+        if (token) {
+          const decoded = fastify.jwt.verify(token)
+          userId = decoded.phone || decoded.id || 'anonymous'
+        }
+      } catch (_) { /* 未登录允许生成 */ }
+
+      // 保存到MySQL
+      await saveReport(report.reportId, {
+        userId,
+        scene,
+        subType: subType || '',
+        amount: amount || '待确认',
+        focus: Array.isArray(focus) ? focus : [focus].filter(Boolean),
+        status,
+        evidence,
+        memberLevel,
+        reportData: report,
+        isLocked: memberLevel === 0,
+        orderId: '',
       })
 
       return { success: true, report }
@@ -59,70 +77,119 @@ export async function reportRoutes(fastify) {
       return reply.status(400).send({ success: false, error: '缺少报告ID' })
     }
 
-    const { getReport } = await import('../../db/mockStore.js')
-    const report = getReport(reportId)
+    try {
+      const draft = await getReportDb(reportId)
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: '报告不存在' })
+      }
 
-    if (!report) {
-      return reply.status(404).send({ success: false, error: '报告不存在或已过期' })
+      return {
+        success: true,
+        report: {
+          reportId: draft.reportId,
+          scene: draft.scene,
+          ...draft.reportData,
+          locked: draft.isLocked,
+          isLocked: draft.isLocked,
+        },
+      }
+    } catch (err) {
+      console.error('查询报告失败:', err)
+      return reply.status(500).send({ success: false, error: '查询失败' })
     }
+  })
 
-    // 检查是否过期
-    if (report.expiresAt && new Date(report.expiresAt) < new Date()) {
-      return reply.status(410).send({ success: false, error: '链接已过期' })
+  // 用户报告列表（GET /api/v1/report/list）
+  fastify.get('/list', {
+    preHandler: [fastify.authenticate],
+  }, async (request, reply) => {
+    try {
+      const userId = request.user?.phone || request.user?.id || ''
+      const reports = await listReportsByUser(userId)
+      return {
+        success: true,
+        reports: reports.map(r => ({
+          reportId: r.reportId,
+          scene: r.scene,
+          subType: r.subType,
+          amount: r.amount,
+          status: r.status,
+          isLocked: r.isLocked,
+          orderId: r.orderId,
+          createdAt: r.createdAt,
+          // 轻量预览（不全量返回）
+          preview: r.reportData ? {
+            type: r.reportData.m1?.type || '',
+            evidenceScore: r.reportData.m2?.evidenceScore || 0,
+          } : null,
+        })),
+      }
+    } catch (err) {
+      console.error('报告列表查询失败:', err)
+      return reply.status(500).send({ success: false, error: '查询失败' })
     }
-
-    return { success: true, report }
   })
 
   // 生成分享链接（POST /api/v1/report/:reportId/share）
   fastify.post('/:reportId/share', async (request, reply) => {
     const { reportId } = request.params || {}
 
-    const { getReport } = await import('../../db/mockStore.js')
-    const report = getReport(reportId)
+    try {
+      const draft = await getReportDb(reportId)
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: '报告不存在' })
+      }
 
-    if (!report) {
-      return reply.status(404).send({ success: false, error: '报告不存在' })
+      const token = Buffer.from(`${reportId}:${Date.now() + 24 * 60 * 60 * 1000}`).toString('base64')
+      const shareUrl = `/pages/draft/report?reportId=${reportId}&token=${encodeURIComponent(token)}`
+
+      return { success: true, shareUrl, expiresIn: '24小时' }
+    } catch (err) {
+      console.error('生成分享链接失败:', err)
+      return reply.status(500).send({ success: false, error: '操作失败' })
     }
-
-    // 生成24小时有效的token
-    const token = Buffer.from(`${reportId}:${Date.now() + 24 * 60 * 60 * 1000}`).toString('base64')
-    const shareUrl = `/pages/draft/report?reportId=${reportId}&token=${encodeURIComponent(token)}`
-
-    return { success: true, shareUrl, expiresIn: '24小时' }
   })
 
   // 删除报告（DELETE /api/v1/report/:reportId）
-  fastify.delete('/:reportId', async (request, reply) => {
+  fastify.delete('/:reportId', {
+    preHandler: [fastify.authenticate],
+  }, async (request, reply) => {
     const { reportId } = request.params || {}
 
-    const { deleteReport } = await import('../../db/mockStore.js')
-    const existed = deleteReport(reportId)
-
-    if (!existed) {
-      return reply.status(404).send({ success: false, error: '报告不存在' })
+    try {
+      const result = await deleteReport(reportId)
+      if (!result) {
+        return reply.status(404).send({ success: false, error: '报告不存在' })
+      }
+      return { success: true }
+    } catch (err) {
+      console.error('删除报告失败:', err)
+      return reply.status(500).send({ success: false, error: '删除失败' })
     }
-
-    return { success: true }
   })
 
   // 创建PDF任务（POST /api/v1/report/:reportId/pdf）
   fastify.post('/:reportId/pdf', async (request, reply) => {
     const { reportId } = request.params || {}
 
-    const { getReport } = await import('../../db/mockStore.js')
-    const report = getReport(reportId)
+    try {
+      const draft = await getReportDb(reportId)
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: '报告不存在' })
+      }
 
-    if (!report) {
-      return reply.status(404).send({ success: false, error: '报告不存在' })
+      if (draft.isLocked) {
+        return reply.status(403).send({ success: false, error: '报告已锁定，请先解锁' })
+      }
+
+      const report = draft.reportData || {}
+      report.reportId = draft.reportId
+      const result = generatePdfTask(report)
+      return { success: true, taskId: result.taskId, status: result.status }
+    } catch (err) {
+      console.error('创建PDF任务失败:', err)
+      return reply.status(500).send({ success: false, error: '创建PDF任务失败' })
     }
-
-    if (report.locked) {
-      return reply.status(403).send({ success: false, error: '报告已锁定，请先解锁' })
-    }
-
-    const result = generatePdfTask(report)
-    return { success: true, taskId: result.taskId, status: result.status }
   })
 
   // 查询PDF任务状态（GET /api/v1/report/pdf/:taskId）

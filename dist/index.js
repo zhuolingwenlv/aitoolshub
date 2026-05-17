@@ -300,6 +300,7 @@ var init_mysql = __esm({
 var store_exports = {};
 __export(store_exports, {
   consumeVerifyCode: () => consumeVerifyCode2,
+  createMallOrder: () => createMallOrder,
   createOrder: () => createOrder2,
   createUser: () => createUser2,
   deductMemberRemainCount: () => deductMemberRemainCount2,
@@ -308,15 +309,21 @@ __export(store_exports, {
   findOrCreateUser: () => findOrCreateUser,
   findUserByOpenid: () => findUserByOpenid,
   findUserByPhone: () => findUserByPhone2,
+  getGoods: () => getGoods,
+  getMallOrder: () => getMallOrder,
   getMemberInfo: () => getMemberInfo2,
   getOrder: () => getOrder,
   getReport: () => getReport2,
   isMember: () => isMember,
   isOrderPaid: () => isOrderPaid,
+  listGoods: () => listGoods,
+  listOrdersByUser: () => listOrdersByUser,
   listReportsByUser: () => listReportsByUser,
+  listUserMallOrders: () => listUserMallOrders,
   purchaseMember: () => purchaseMember,
   saveReport: () => saveReport2,
   setVerifyCode: () => setVerifyCode2,
+  updateMallOrderPaid: () => updateMallOrderPaid,
   updateOrderPaid: () => updateOrderPaid2
 });
 function setVerifyCode2(phone, code, expiresMs = 10 * 60 * 1e3) {
@@ -390,24 +397,53 @@ async function saveReport2(reportId, data) {
   const reportDataJson = reportData ? JSON.stringify(reportData) : null;
   const existing = await query("SELECT 1 FROM drafts WHERE report_id = ? LIMIT 1", [reportId]);
   if (existing.length > 0) {
-    await query(
-      `UPDATE drafts SET scene=?, sub_type=?, amount=?, focus=?, status=?, evidence=?,
-       member_level=?, report_data=?, is_locked=?, order_id=?, update_time=NOW()
-       WHERE report_id=? AND is_deleted=0`,
-      [
-        scene,
-        subType,
-        amount,
-        focusJson,
-        status,
-        evidenceJson,
-        memberLevel,
-        reportDataJson,
-        isLocked ? 1 : 0,
-        orderId,
-        reportId
-      ]
-    );
+    const sets = [];
+    const vals = [];
+    if (data.scene !== void 0) {
+      sets.push("scene=?");
+      vals.push(scene);
+    }
+    if (data.subType !== void 0) {
+      sets.push("sub_type=?");
+      vals.push(subType);
+    }
+    if (data.amount !== void 0) {
+      sets.push("amount=?");
+      vals.push(amount);
+    }
+    if (data.focus !== void 0) {
+      sets.push("focus=?");
+      vals.push(focusJson);
+    }
+    if (data.status !== void 0) {
+      sets.push("status=?");
+      vals.push(status);
+    }
+    if (data.evidence !== void 0) {
+      sets.push("evidence=?");
+      vals.push(evidenceJson);
+    }
+    if (data.memberLevel !== void 0) {
+      sets.push("member_level=?");
+      vals.push(memberLevel);
+    }
+    if (data.reportData !== void 0) {
+      sets.push("report_data=?");
+      vals.push(reportDataJson);
+    }
+    if (data.isLocked !== void 0) {
+      sets.push("is_locked=?");
+      vals.push(isLocked ? 1 : 0);
+    }
+    if (data.orderId !== void 0) {
+      sets.push("order_id=?");
+      vals.push(orderId);
+    }
+    if (sets.length > 0) {
+      sets.push("updated_at=NOW()");
+      vals.push(reportId);
+      await query(`UPDATE drafts SET ${sets.join(", ")} WHERE report_id=? AND is_deleted=0`, vals);
+    }
   } else {
     await insert(
       `INSERT INTO drafts (report_id, user_id, scene, sub_type, amount, focus, status, evidence,
@@ -437,14 +473,14 @@ async function getReport2(reportId) {
 }
 async function deleteReport2(reportId) {
   const result = await query(
-    "UPDATE drafts SET is_deleted = 1, update_time = NOW() WHERE report_id = ?",
+    "UPDATE drafts SET is_deleted = 1, updated_at = NOW() WHERE report_id = ?",
     [reportId]
   );
   return result.affectedRows > 0;
 }
 async function listReportsByUser(userId, limit = 20) {
   const rows = await query(
-    "SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 ORDER BY create_time DESC LIMIT ?",
+    "SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 ORDER BY created_at DESC LIMIT ?",
     [userId, limit]
   );
   return rows.map(parseDraft);
@@ -493,6 +529,13 @@ async function isOrderPaid(orderId) {
   );
   return rows.length > 0;
 }
+async function listOrdersByUser(userId, limit = 20) {
+  const rows = await query(
+    "SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+    [userId, limit]
+  );
+  return rows.map(parseOrder);
+}
 function parseOrder(row) {
   return {
     id: row.order_id,
@@ -527,7 +570,7 @@ async function purchaseMember(userId, level, planId, planName, days, times) {
     await query(
       `UPDATE members SET level = ?, plan_id = ?, plan_name = ?,
        total_times = total_times + ?, remain_times = GREATEST(0, remain_times) + ?,
-       expire_time = ?, renew_discount = ?, is_deleted = 0, update_time = NOW()
+       expire_time = ?, renew_discount = ?, is_deleted = 0, updated_at = NOW()
        WHERE user_id = ?`,
       [String(level), planId, planName, times, times, expireTimeStr, renewDiscount, userId]
     );
@@ -566,6 +609,68 @@ function parseMember(row) {
     isDeleted: row.is_deleted === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+async function listGoods() {
+  const rows = await query(
+    "SELECT * FROM goods WHERE status = 1 ORDER BY id ASC"
+  );
+  return rows.map(parseGoods);
+}
+async function getGoods(goodsId) {
+  const rows = await query("SELECT * FROM goods WHERE id = ? AND status = 1 LIMIT 1", [goodsId]);
+  if (!rows[0]) return null;
+  return parseGoods(rows[0]);
+}
+async function createMallOrder(orderId, userId, goodsId, goodsName, amount) {
+  await insert(
+    "INSERT INTO mall_orders (order_id, user_id, goods_id, goods_name, amount) VALUES (?,?,?,?,?)",
+    [orderId, userId, goodsId, goodsName, amount]
+  );
+}
+async function getMallOrder(orderId) {
+  const rows = await query("SELECT * FROM mall_orders WHERE order_id = ? LIMIT 1", [orderId]);
+  if (!rows[0]) return null;
+  return parseMallOrder(rows[0]);
+}
+async function updateMallOrderPaid(orderId, wechatTradeNo, downloadUrl) {
+  await query(
+    "UPDATE mall_orders SET pay_status=?, wechat_trade_no=?, paid_at=NOW(), download_url=? WHERE order_id=?",
+    ["success", wechatTradeNo, downloadUrl, orderId]
+  );
+}
+async function listUserMallOrders(userId) {
+  const rows = await query(
+    "SELECT * FROM mall_orders WHERE user_id = ? AND pay_status = ? ORDER BY created_at DESC",
+    [userId, "success"]
+  );
+  return rows.map(parseMallOrder);
+}
+function parseGoods(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    price: row.price,
+    productType: row.product_type,
+    coverImage: row.cover_image,
+    fileUrl: row.file_url,
+    description: row.description,
+    status: row.status
+  };
+}
+function parseMallOrder(row) {
+  return {
+    id: row.order_id,
+    orderId: row.order_id,
+    userId: row.user_id,
+    goodsId: row.goods_id,
+    goodsName: row.goods_name,
+    amount: row.amount,
+    payStatus: row.pay_status,
+    wechatTradeNo: row.wechat_trade_no,
+    paidAt: row.paid_at,
+    downloadUrl: row.download_url,
+    createdAt: row.created_at
   };
 }
 async function ensureTables2() {
@@ -635,6 +740,32 @@ async function ensureTables2() {
       ip_address   VARCHAR(45)  DEFAULT NULL,
       user_agent   TEXT         DEFAULT NULL,
       created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+    `CREATE TABLE IF NOT EXISTS goods (
+      id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name         VARCHAR(128) NOT NULL,
+      price        INT UNSIGNED NOT NULL COMMENT '\u91D1\u989D\u5206',
+      product_type VARCHAR(20)  NOT NULL COMMENT 'ebook|material',
+      cover_image  VARCHAR(255) DEFAULT '',
+      file_url     VARCHAR(255) DEFAULT '',
+      description  TEXT         DEFAULT NULL,
+      status       TINYINT(1)   DEFAULT 1,
+      created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+    `CREATE TABLE IF NOT EXISTS mall_orders (
+      order_id        VARCHAR(36)  PRIMARY KEY,
+      user_id         VARCHAR(64)  NOT NULL,
+      goods_id        INT UNSIGNED NOT NULL,
+      goods_name      VARCHAR(128) NOT NULL,
+      amount          INT UNSIGNED NOT NULL COMMENT '\u91D1\u989D\u5206',
+      pay_status      VARCHAR(20)  DEFAULT 'pending',
+      wechat_trade_no  VARCHAR(64)  DEFAULT '',
+      paid_at         TIMESTAMP    DEFAULT 0,
+      download_url    VARCHAR(255) DEFAULT '',
+      created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user_id (user_id),
+      INDEX idx_goods_id (goods_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
   ];
   for (const stmt of statements) {
@@ -647,7 +778,22 @@ async function ensureTables2() {
       throw e;
     }
   }
-  console.log("[MySQL] \u4E94\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
+  console.log("[MySQL] \u4E03\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
+  const seedGoods = [
+    [1, "\u7EA0\u7EB7\u7EF4\u6743\u5B9E\u6218\u7535\u5B50\u4E66", 19800, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u6DF1\u5EA6\u89E3\u6790\uFF0C200+\u771F\u5B9E\u6848\u4F8B\u62C6\u89E3"],
+    [2, "\u7EF4\u6743\u7D20\u6750\u6A21\u677F\u5E93", 29900, "material", "/images/shop-material.png", "", "\u8D77\u8BC9\u72B6/\u5F8B\u5E08\u51FD/\u8BC1\u636E\u6E05\u5355\u7B498\u5927\u7C7B\u6CD5\u5F8B\u6587\u4E66\u6A21\u677F"]
+  ];
+  for (const [id, name, price, type, cover, url, desc] of seedGoods) {
+    try {
+      await query(
+        "INSERT IGNORE INTO goods (id, name, price, product_type, cover_image, file_url, description) VALUES (?,?,?,?,?,?,?)",
+        [id, name, price, type, cover, url, desc]
+      );
+      console.log(`[MySQL] \u5546\u54C1\u79CD\u5B50: ${name}`);
+    } catch (e) {
+      console.warn(`[MySQL] \u79CD\u5B50\u5546\u54C1\u8DF3\u8FC7: ${e.message}`);
+    }
+  }
 }
 var verifyCodes2;
 var init_store = __esm({
@@ -4395,6 +4541,7 @@ setInterval(() => {
 }, 5 * 60 * 1e3);
 
 // src/modules/report/report.route.js
+init_store();
 async function reportRoutes(fastify) {
   fastify.post("/generate", async (request, reply) => {
     const body = request.body || {};
@@ -4420,12 +4567,27 @@ async function reportRoutes(fastify) {
         memberLevel,
         memo
       });
-      const { mockDb: mockDb2 } = await Promise.resolve().then(() => (init_mockStore(), mockStore_exports));
-      mockDb2.reports.set(report.reportId, {
-        ...report,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1e3).toISOString()
-        // 24h
+      let userId = "anonymous";
+      try {
+        const token = request.headers.authorization?.replace("Bearer ", "");
+        if (token) {
+          const decoded = fastify.jwt.verify(token);
+          userId = decoded.phone || decoded.id || "anonymous";
+        }
+      } catch (_) {
+      }
+      await saveReport2(report.reportId, {
+        userId,
+        scene,
+        subType: subType || "",
+        amount: amount || "\u5F85\u786E\u8BA4",
+        focus: Array.isArray(focus) ? focus : [focus].filter(Boolean),
+        status,
+        evidence,
+        memberLevel,
+        reportData: report,
+        isLocked: memberLevel === 0,
+        orderId: ""
       });
       return { success: true, report };
     } catch (err) {
@@ -4438,48 +4600,103 @@ async function reportRoutes(fastify) {
     if (!reportId) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u62A5\u544AID" });
     }
-    const { getReport: getReport3 } = await Promise.resolve().then(() => (init_mockStore(), mockStore_exports));
-    const report = getReport3(reportId);
-    if (!report) {
-      return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728\u6216\u5DF2\u8FC7\u671F" });
+    try {
+      const draft = await getReport2(reportId);
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+      }
+      return {
+        success: true,
+        report: {
+          reportId: draft.reportId,
+          scene: draft.scene,
+          ...draft.reportData,
+          locked: draft.isLocked,
+          isLocked: draft.isLocked
+        }
+      };
+    } catch (err) {
+      console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
-    if (report.expiresAt && new Date(report.expiresAt) < /* @__PURE__ */ new Date()) {
-      return reply.status(410).send({ success: false, error: "\u94FE\u63A5\u5DF2\u8FC7\u671F" });
+  });
+  fastify.get("/list", {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const userId = request.user?.phone || request.user?.id || "";
+      const reports2 = await listReportsByUser(userId);
+      return {
+        success: true,
+        reports: reports2.map((r) => ({
+          reportId: r.reportId,
+          scene: r.scene,
+          subType: r.subType,
+          amount: r.amount,
+          status: r.status,
+          isLocked: r.isLocked,
+          orderId: r.orderId,
+          createdAt: r.createdAt,
+          // 轻量预览（不全量返回）
+          preview: r.reportData ? {
+            type: r.reportData.m1?.type || "",
+            evidenceScore: r.reportData.m2?.evidenceScore || 0
+          } : null
+        }))
+      };
+    } catch (err) {
+      console.error("\u62A5\u544A\u5217\u8868\u67E5\u8BE2\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
-    return { success: true, report };
   });
   fastify.post("/:reportId/share", async (request, reply) => {
     const { reportId } = request.params || {};
-    const { getReport: getReport3 } = await Promise.resolve().then(() => (init_mockStore(), mockStore_exports));
-    const report = getReport3(reportId);
-    if (!report) {
-      return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+    try {
+      const draft = await getReport2(reportId);
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+      }
+      const token = Buffer.from(`${reportId}:${Date.now() + 24 * 60 * 60 * 1e3}`).toString("base64");
+      const shareUrl = `/pages/draft/report?reportId=${reportId}&token=${encodeURIComponent(token)}`;
+      return { success: true, shareUrl, expiresIn: "24\u5C0F\u65F6" };
+    } catch (err) {
+      console.error("\u751F\u6210\u5206\u4EAB\u94FE\u63A5\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u64CD\u4F5C\u5931\u8D25" });
     }
-    const token = Buffer.from(`${reportId}:${Date.now() + 24 * 60 * 60 * 1e3}`).toString("base64");
-    const shareUrl = `/pages/draft/report?reportId=${reportId}&token=${encodeURIComponent(token)}`;
-    return { success: true, shareUrl, expiresIn: "24\u5C0F\u65F6" };
   });
-  fastify.delete("/:reportId", async (request, reply) => {
+  fastify.delete("/:reportId", {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
     const { reportId } = request.params || {};
-    const { deleteReport: deleteReport3 } = await Promise.resolve().then(() => (init_mockStore(), mockStore_exports));
-    const existed = deleteReport3(reportId);
-    if (!existed) {
-      return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+    try {
+      const result = await deleteReport2(reportId);
+      if (!result) {
+        return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+      }
+      return { success: true };
+    } catch (err) {
+      console.error("\u5220\u9664\u62A5\u544A\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u5220\u9664\u5931\u8D25" });
     }
-    return { success: true };
   });
   fastify.post("/:reportId/pdf", async (request, reply) => {
     const { reportId } = request.params || {};
-    const { getReport: getReport3 } = await Promise.resolve().then(() => (init_mockStore(), mockStore_exports));
-    const report = getReport3(reportId);
-    if (!report) {
-      return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+    try {
+      const draft = await getReport2(reportId);
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+      }
+      if (draft.isLocked) {
+        return reply.status(403).send({ success: false, error: "\u62A5\u544A\u5DF2\u9501\u5B9A\uFF0C\u8BF7\u5148\u89E3\u9501" });
+      }
+      const report = draft.reportData || {};
+      report.reportId = draft.reportId;
+      const result = generatePdfTask(report);
+      return { success: true, taskId: result.taskId, status: result.status };
+    } catch (err) {
+      console.error("\u521B\u5EFAPDF\u4EFB\u52A1\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u521B\u5EFAPDF\u4EFB\u52A1\u5931\u8D25" });
     }
-    if (report.locked) {
-      return reply.status(403).send({ success: false, error: "\u62A5\u544A\u5DF2\u9501\u5B9A\uFF0C\u8BF7\u5148\u89E3\u9501" });
-    }
-    const result = generatePdfTask(report);
-    return { success: true, taskId: result.taskId, status: result.status };
   });
   fastify.get("/pdf/:taskId", async (request, reply) => {
     const { taskId } = request.params || {};
@@ -4677,52 +4894,8 @@ var MEMBER_PLANS = {
   2: { level: 2, name: "\u534A\u5E74SVIP", price: 598, priceDisplay: "\xA5598", unit: "\u534A\u5E74", count: 30, period: 6, periodText: "6\u4E2A\u6708", benefits: ["30\u6B21\u8BCA\u65AD", "\u7CBE\u88C5\u62A5\u544A", "\u4E13\u5C5E\u987E\u95EE", "\u4F18\u5148\u5BA2\u670D"] },
   3: { level: 3, name: "\u9ED1\u91D1\u5E74\u5361", price: 2988, priceDisplay: "\xA52988", unit: "\u5E74", count: 50, period: 12, periodText: "12\u4E2A\u6708", benefits: ["50\u6B21\u8BCA\u65AD", "\u5178\u85CF\u62A5\u544A", "\u987E\u95EE\u590D\u6838", "\u4F18\u5148\u5BA2\u670D", "\u4E13\u5C5E\u901A\u9053"] }
 };
-function calcExpireDate(level, fromDate = /* @__PURE__ */ new Date()) {
-  const plan = MEMBER_PLANS[level];
-  if (!plan || !plan.period) {
-    return new Date(fromDate.getTime() + 365 * 24 * 60 * 60 * 1e3).toISOString();
-  }
-  const d = new Date(fromDate);
-  d.setMonth(d.getMonth() + plan.period);
-  return d.toISOString();
-}
 function getMemberTypeName(level) {
   return MEMBER_PLANS[level]?.name || "\u666E\u901A\u7528\u6237";
-}
-async function purchaseMember2(phone, memberLevel, planId) {
-  const plan = MEMBER_PLANS[memberLevel];
-  if (!plan) return { success: false, error: "\u65E0\u6548\u7684\u4F1A\u5458\u7B49\u7EA7" };
-  const user = await findUserByPhone2(phone);
-  if (!user) return { success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" };
-  const userId = user.id;
-  const current = await getMemberInfo2(userId);
-  let newLevel = memberLevel;
-  let newCount;
-  let newExpire;
-  const now = /* @__PURE__ */ new Date();
-  if (!current || !current.level || current.level === 0) {
-    newCount = plan.count;
-    newExpire = calcExpireDate(memberLevel, now);
-  } else if (current.level === memberLevel) {
-    newCount = (current.remainTimes || 0) + plan.count;
-    const base = current.expireTime && new Date(current.expireTime) > now ? new Date(current.expireTime) : now;
-    newExpire = calcExpireDate(memberLevel, base);
-  } else {
-    newLevel = Math.max(current.level, memberLevel);
-    newCount = (current.remainTimes || 0) + plan.count;
-    const base = current.expireTime && new Date(current.expireTime) > now ? new Date(current.expireTime) : now;
-    newExpire = calcExpireDate(newLevel, base);
-  }
-  const days = plan.period > 0 ? plan.period * 30 : 365;
-  await purchaseMember(userId, newLevel, planId, plan.name, days, plan.count);
-  return {
-    success: true,
-    memberType: getMemberTypeName(newLevel),
-    remainCount: newCount,
-    expireDate: newExpire,
-    memberLevel: newLevel,
-    orderId: uuidv42()
-  };
 }
 async function deductMemberCount(phone) {
   const user = await findUserByPhone2(phone);
@@ -4763,24 +4936,8 @@ async function getMemberStatus(phone) {
 }
 
 // src/modules/member/member.route.ts
-init_mockStore();
+init_store();
 async function memberRoutes(fastify) {
-  fastify.post("/purchase", {
-    preHandler: [fastify.authenticate]
-  }, async (request, reply) => {
-    const { memberLevel, planId } = request.body;
-    const { phone } = request.user;
-    if (!MEMBER_PLANS[memberLevel]) {
-      return reply.status(400).send({ success: false, error: "\u65E0\u6548\u7684\u4F1A\u5458\u7B49\u7EA7" });
-    }
-    try {
-      const result = await purchaseMember2(phone, memberLevel, planId);
-      return result;
-    } catch (err) {
-      console.error("\u274C \u4F1A\u5458\u8D2D\u4E70\u5931\u8D25:", err);
-      return reply.status(500).send({ success: false, error: "\u4F1A\u5458\u8D2D\u4E70\u5931\u8D25\uFF1A" + err.message });
-    }
-  });
   fastify.post("/deduct", {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
@@ -4812,26 +4969,49 @@ async function memberRoutes(fastify) {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
     const { phone } = request.user;
-    const user = mockDb.users.get(phone);
-    if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
-    const userOrders = [];
-    for (const [, order] of mockDb.orders) {
-      if (order.userId === user.id) {
-        const plan = MEMBER_PLANS[order.level];
-        userOrders.push({
-          orderId: order.orderId,
-          level: order.level,
-          levelName: plan?.name || "\u672A\u77E5",
-          price: plan?.price || 0,
-          priceDisplay: plan?.priceDisplay || "\xA50",
-          status: order.status,
-          paidAt: order.paidAt,
-          createdAt: order.createdAt
-        });
-      }
+    const userId = phone;
+    try {
+      const orders2 = await listOrdersByUser(userId);
+      const result = orders2.map((o) => {
+        const plan = MEMBER_PLANS[o.planLevel];
+        return {
+          orderId: o.orderId,
+          planId: o.planId,
+          planName: o.planName,
+          planLevel: o.planLevel,
+          amount: o.amount,
+          priceDisplay: plan?.priceDisplay || "\xA5" + (o.amount / 100).toFixed(0),
+          payStatus: o.payStatus,
+          paidAt: o.paidAt,
+          createdAt: o.createdAt
+        };
+      });
+      return { success: true, orders: result };
+    } catch (err) {
+      console.error("\u274C \u67E5\u8BE2\u8BA2\u5355\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u8BA2\u5355\u5931\u8D25\uFF1A" + err.message });
     }
-    userOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return { success: true, orders: userOrders };
+  });
+  fastify.get("/mall-orders", {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    const { phone } = request.user;
+    try {
+      const orders2 = await listUserMallOrders(phone);
+      return { success: true, orders: orders2.map((o) => ({
+        orderId: o.orderId,
+        goodsId: o.goodsId,
+        goodsName: o.goodsName,
+        amount: o.amount,
+        priceDisplay: "\xA5" + (o.amount / 100).toFixed(0),
+        payStatus: o.payStatus,
+        paidAt: o.paidAt,
+        downloadUrl: o.downloadUrl
+      })) };
+    } catch (err) {
+      console.error("\u274C \u67E5\u8BE2\u5546\u57CE\u8BA2\u5355\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5546\u57CE\u8BA2\u5355\u5931\u8D25" });
+    }
   });
   fastify.post("/invoice", {
     preHandler: [fastify.authenticate]
@@ -4845,53 +5025,20 @@ async function memberRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u4F01\u4E1A\u53D1\u7968\u9700\u586B\u5199\u7A0E\u53F7" });
     }
     const invoiceId = "INV" + Date.now();
-    const invoiceRecord = {
-      invoiceId,
-      userId: mockDb.users.get(phone)?.id,
-      phone,
-      type,
-      // 'personal' | 'enterprise'
-      title,
-      // 发票抬头
-      taxNo: taxNo || "",
-      // 税号（企业）
-      companyName: companyName || "",
-      // 公司名称
-      email,
-      // 接收邮箱
-      amount: Number(amount) || 0,
-      status: "pending",
-      // pending | issued | rejected
-      orderId: orderId || "",
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    if (!mockDb.invoices) {
-      mockDb.invoices = /* @__PURE__ */ new Map();
-    }
-    mockDb.invoices.set(invoiceId, invoiceRecord);
     return {
       success: true,
-      message: "\u5F00\u7968\u7533\u8BF7\u5DF2\u63D0\u4EA4\uFF0C\u6211\u4EEC\u5C06\u57283\u4E2A\u5DE5\u4F5C\u65E5\u5185\u5904\u7406",
+      message: "\u5F00\u7968\u7533\u8BF7\u5DF2\u63D0\u4EA4\uFF0C\u6211\u4EEC\u5C06\u57283\u4E2A\u5DE5\u4F5C\u65E5\u5185\u5904\u7406\u81F3\u60A8\u7684\u90AE\u7BB1",
       invoiceId
     };
   });
   fastify.get("/invoices", {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
-    const { phone } = request.user;
-    const user = mockDb.users.get(phone);
-    if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
-    const invoices = [];
-    const invMap = mockDb.invoices;
-    if (invMap) {
-      for (const [, inv] of invMap) {
-        if (inv.phone === phone) {
-          invoices.push(inv);
-        }
-      }
-    }
-    invoices.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return { success: true, invoices };
+    return {
+      success: true,
+      invoices: [],
+      message: "\u5F00\u7968\u8BB0\u5F55\u529F\u80FD\u5347\u7EA7\u4E2D\uFF0C\u5386\u53F2\u7533\u8BF7\u4ECD\u6709\u6548"
+    };
   });
   fastify.get("/plans", async (request, reply) => {
     return {
@@ -5212,6 +5359,13 @@ function signParams(params) {
 async function unifiedOrder(params) {
   const { openid, planId, memberLevel, totalFee, userId } = params;
   const orderId = "O" + Date.now() + uuidv43().replace(/-/g, "").slice(0, 12).toUpperCase();
+  try {
+    await createOrder2(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee);
+    console.log("[Pay] \u8BA2\u5355\u5DF2\u521B\u5EFA:", orderId);
+  } catch (e) {
+    console.error("[Pay] \u521B\u5EFA\u8BA2\u5355\u5931\u8D25:", e.message);
+    return { success: false, error: "\u4E0B\u5355\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" };
+  }
   const timeStart = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:T]/g, "").slice(0, 14);
   const timeExpire = new Date(Date.now() + 30 * 60 * 1e3).toISOString().replace(/[-:T]/g, "").slice(0, 14);
   const nonceStr = uuidv43().replace(/-/g, "");
@@ -5287,17 +5441,31 @@ async function handlePayCallback(xmlBody) {
       const transactionId = params.transaction_id || "";
       await updateOrderPaid2(outTradeNo, transactionId, xmlBody);
       if (attach && attach.memberLevel !== void 0 && attach.userId) {
-        const days = getPlanDays(attach.memberLevel);
-        const times = getPlanTimes(attach.memberLevel);
-        await purchaseMember(
-          attach.userId,
-          attach.memberLevel,
-          attach.planId || outTradeNo,
-          getPlanName(attach.memberLevel),
-          days,
-          times
-        );
-        console.log("[Pay] \u4F1A\u5458\u5F00\u901A\u6210\u529F", { orderId: outTradeNo, level: attach.memberLevel });
+        if (attach.memberLevel === 0 && attach.reportId) {
+          const { saveReport: saveReport3 } = await Promise.resolve().then(() => (init_store(), store_exports));
+          await saveReport3(attach.reportId, {
+            userId: attach.userId,
+            isLocked: false,
+            orderId: outTradeNo
+          });
+          console.log("[Pay] \u5355\u6B21\u62A5\u544A\u89E3\u9501\u6210\u529F", { reportId: attach.reportId });
+        } else if (attach.memberLevel === 0 && attach.goodsId) {
+          const { updateMallOrderPaid: updateMallOrderPaid3 } = await Promise.resolve().then(() => (init_store(), store_exports));
+          await updateMallOrderPaid3(outTradeNo, transactionId, "");
+          console.log("[Pay] \u5546\u57CE\u8BA2\u5355\u652F\u4ED8\u6210\u529F", { orderId: outTradeNo, goodsId: attach.goodsId });
+        } else if (attach.memberLevel > 0) {
+          const days = getPlanDays(attach.memberLevel);
+          const times = getPlanTimes(attach.memberLevel);
+          await purchaseMember(
+            attach.userId,
+            attach.memberLevel,
+            attach.planId || outTradeNo,
+            getPlanName(attach.memberLevel),
+            days,
+            times
+          );
+          console.log("[Pay] \u4F1A\u5458\u5F00\u901A\u6210\u529F", { orderId: outTradeNo, level: attach.memberLevel });
+        }
       }
     }
     return xmlEncode({ return_code: "SUCCESS", return_msg: "OK" });
@@ -5400,6 +5568,88 @@ async function payRoutes(fastify) {
   });
 }
 
+// src/modules/mall/mall.route.ts
+init_store();
+async function mallRoutes(fastify) {
+  fastify.get("/goods", async (request, reply) => {
+    try {
+      const goods = await listGoods();
+      return {
+        success: true,
+        goods: goods.map((g) => ({
+          id: g.id,
+          name: g.name,
+          price: g.price,
+          priceDisplay: "\xA5" + (g.price / 100).toFixed(0),
+          productType: g.productType,
+          coverImage: g.coverImage,
+          description: g.description
+        }))
+      };
+    } catch (err) {
+      console.error("\u5546\u54C1\u5217\u8868\u67E5\u8BE2\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
+    }
+  });
+  fastify.get("/goods/:id", async (request, reply) => {
+    const id = parseInt(request.params.id);
+    if (isNaN(id)) {
+      return reply.status(400).send({ success: false, error: "\u65E0\u6548\u7684\u5546\u54C1ID" });
+    }
+    try {
+      const goods = await getGoods(id);
+      if (!goods) {
+        return reply.status(404).send({ success: false, error: "\u5546\u54C1\u4E0D\u5B58\u5728" });
+      }
+      return {
+        success: true,
+        goods: {
+          ...goods,
+          priceDisplay: "\xA5" + (goods.price / 100).toFixed(0)
+        }
+      };
+    } catch (err) {
+      console.error("\u5546\u54C1\u8BE6\u60C5\u67E5\u8BE2\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
+    }
+  });
+  fastify.post("/order", {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    const { goodsId, openid } = request.body || {};
+    const userId = request.user?.phone || request.user?.id || "";
+    if (!goodsId) {
+      return reply.status(400).send({ success: false, error: "\u7F3A\u5C11goodsId" });
+    }
+    try {
+      const goods = await getGoods(Number(goodsId));
+      if (!goods) {
+        return reply.status(404).send({ success: false, error: "\u5546\u54C1\u4E0D\u5B58\u5728" });
+      }
+      const orderId = "M" + Date.now() + Math.random().toString(36).slice(2, 8).toUpperCase();
+      await createMallOrder(orderId, userId, goods.id, goods.name, goods.price);
+      const payResult = await unifiedOrder({
+        openid: openid || "mock_openid_" + Date.now(),
+        planId: "mall_" + goods.id,
+        memberLevel: 0,
+        totalFee: goods.price,
+        userId
+      });
+      if (!payResult.success) {
+        return reply.status(500).send({ success: false, error: payResult.error });
+      }
+      return {
+        success: true,
+        orderId,
+        jsapiParams: payResult.data
+      };
+    } catch (err) {
+      console.error("\u5546\u57CE\u4E0B\u5355\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u4E0B\u5355\u5931\u8D25" });
+    }
+  });
+}
+
 // src/index.ts
 init_mysql();
 init_store();
@@ -5476,6 +5726,7 @@ await app.register(reportRoutes, { prefix: "/api/v1/report" });
 await app.register(userRoutes, { prefix: "/api/v1/user" });
 await app.register(verifyRoutes, { prefix: "/api/v1/verify" });
 await app.register(memberRoutes, { prefix: "/api/v1/member" });
+await app.register(mallRoutes, { prefix: "/api/v1/mall" });
 await app.register(adminRoute, { prefix: "/api/v1/admin" });
 await app.register(webhookRoutes, { prefix: "/api/v1/ext" });
 await app.register(payRoutes, { prefix: "" });

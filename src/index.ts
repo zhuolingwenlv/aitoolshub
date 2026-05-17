@@ -14,6 +14,7 @@ import { memberRoutes } from './modules/member/member.route.js'
 import adminRoute from './modules/admin/admin.route.js'
 import { webhookRoutes } from './modules/ext/webhook.route.js'
 import { payRoutes } from './modules/pay/pay.route.js'
+import { mallRoutes } from './modules/mall/mall.route.js'
 import { initPool } from './db/mysql.js'
 import { ensureTables } from './db/store.js'
 
@@ -116,6 +117,7 @@ await app.register(reportRoutes, { prefix: '/api/v1/report' })
 await app.register(userRoutes, { prefix: '/api/v1/user' })
 await app.register(verifyRoutes, { prefix: '/api/v1/verify' })
 await app.register(memberRoutes, { prefix: '/api/v1/member' })
+await app.register(mallRoutes, { prefix: '/api/v1/mall' })
 await app.register(adminRoute, { prefix: '/api/v1/admin' })
 await app.register(webhookRoutes, { prefix: '/api/v1/ext' })
 await app.register(payRoutes, { prefix: '' })

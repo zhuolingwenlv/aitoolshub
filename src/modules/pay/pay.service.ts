@@ -1,7 +1,7 @@
 import * as crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { purchaseMember } from '../member/member.service.js'
-import { updateOrderPaid, purchaseMember as storePurchaseMember } from '../../db/store.js'
+import { updateOrderPaid, createOrder, purchaseMember as storePurchaseMember } from '../../db/store.js'
 
 // ============================================================
 // 微信支付配置（从环境变量读取）
@@ -36,6 +36,15 @@ export async function unifiedOrder(params: {
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   const { openid, planId, memberLevel, totalFee, userId } = params
   const orderId = 'O' + Date.now() + uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()
+
+  // 在调用微信支付前先把订单写入MySQL（P0修复）
+  try {
+    await createOrder(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee)
+    console.log('[Pay] 订单已创建:', orderId)
+  } catch (e: any) {
+    console.error('[Pay] 创建订单失败:', e.message)
+    return { success: false, error: '下单失败，请稍后重试' }
+  }
 
   const timeStart = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
   const timeExpire = new Date(Date.now() + 30 * 60 * 1000).toISOString().replace(/[-:T]/g, '').slice(0, 14)
@@ -121,7 +130,7 @@ export async function handlePayCallback(xmlBody: string): Promise<string> {
     }
 
     // 解析 attach
-    let attach: { planId: string; memberLevel: number; userId: string } | null = null
+    let attach: { planId: string; memberLevel: number; userId: string; reportId?: string; goodsId?: number } | null = null
     try {
       attach = JSON.parse(params.attach)
     } catch {
@@ -135,19 +144,36 @@ export async function handlePayCallback(xmlBody: string): Promise<string> {
       // 1. 更新订单为已支付
       await updateOrderPaid(outTradeNo, transactionId, xmlBody)
 
-      // 2. 开通会员
+      // 2. 开通会员（level>0）或解锁单次报告（level===0）
       if (attach && attach.memberLevel !== undefined && attach.userId) {
-        const days = getPlanDays(attach.memberLevel)
-        const times = getPlanTimes(attach.memberLevel)
-        await storePurchaseMember(
-          attach.userId,
-          attach.memberLevel,
-          attach.planId || outTradeNo,
-          getPlanName(attach.memberLevel),
-          days,
-          times
-        )
-        console.log('[Pay] 会员开通成功', { orderId: outTradeNo, level: attach.memberLevel })
+        if (attach.memberLevel === 0 && attach.reportId) {
+          // 单次购买 → 解锁报告
+          const { saveReport } = await import('../../db/store.js')
+          await saveReport(attach.reportId, {
+            userId: attach.userId,
+            isLocked: false,
+            orderId: outTradeNo,
+          })
+          console.log('[Pay] 单次报告解锁成功', { reportId: attach.reportId })
+        } else if (attach.memberLevel === 0 && attach.goodsId) {
+          // 商城商品购买 → 标记商城订单已支付
+          const { updateMallOrderPaid } = await import('../../db/store.js')
+          await updateMallOrderPaid(outTradeNo, transactionId, '')
+          console.log('[Pay] 商城订单支付成功', { orderId: outTradeNo, goodsId: attach.goodsId })
+        } else if (attach.memberLevel > 0) {
+          // 会员购买 → 开通会员
+          const days = getPlanDays(attach.memberLevel)
+          const times = getPlanTimes(attach.memberLevel)
+          await storePurchaseMember(
+            attach.userId,
+            attach.memberLevel,
+            attach.planId || outTradeNo,
+            getPlanName(attach.memberLevel),
+            days,
+            times
+          )
+          console.log('[Pay] 会员开通成功', { orderId: outTradeNo, level: attach.memberLevel })
+        }
       }
     }
 

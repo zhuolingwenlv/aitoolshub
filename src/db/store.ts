@@ -97,13 +97,24 @@ export async function saveReport(reportId: string, data: any) {
 
   const existing: any[] = await query('SELECT 1 FROM drafts WHERE report_id = ? LIMIT 1', [reportId])
   if (existing.length > 0) {
-    await query(
-      `UPDATE drafts SET scene=?, sub_type=?, amount=?, focus=?, status=?, evidence=?,
-       member_level=?, report_data=?, is_locked=?, order_id=?, update_time=NOW()
-       WHERE report_id=? AND is_deleted=0`,
-      [scene, subType, amount, focusJson, status, evidenceJson, memberLevel,
-       reportDataJson, isLocked ? 1 : 0, orderId, reportId]
-    )
+    // 部分更新：只更新明确传入的字段
+    const sets: string[] = []
+    const vals: any[] = []
+    if (data.scene !== undefined) { sets.push('scene=?'); vals.push(scene) }
+    if (data.subType !== undefined) { sets.push('sub_type=?'); vals.push(subType) }
+    if (data.amount !== undefined) { sets.push('amount=?'); vals.push(amount) }
+    if (data.focus !== undefined) { sets.push('focus=?'); vals.push(focusJson) }
+    if (data.status !== undefined) { sets.push('status=?'); vals.push(status) }
+    if (data.evidence !== undefined) { sets.push('evidence=?'); vals.push(evidenceJson) }
+    if (data.memberLevel !== undefined) { sets.push('member_level=?'); vals.push(memberLevel) }
+    if (data.reportData !== undefined) { sets.push('report_data=?'); vals.push(reportDataJson) }
+    if (data.isLocked !== undefined) { sets.push('is_locked=?'); vals.push(isLocked ? 1 : 0) }
+    if (data.orderId !== undefined) { sets.push('order_id=?'); vals.push(orderId) }
+    if (sets.length > 0) {
+      sets.push('updated_at=NOW()')
+      vals.push(reportId)
+      await query(`UPDATE drafts SET ${sets.join(', ')} WHERE report_id=? AND is_deleted=0`, vals)
+    }
   } else {
     await insert(
       `INSERT INTO drafts (report_id, user_id, scene, sub_type, amount, focus, status, evidence,
@@ -123,7 +134,7 @@ export async function getReport(reportId: string) {
 
 export async function deleteReport(reportId: string): Promise<boolean> {
   const result: any = await query(
-    'UPDATE drafts SET is_deleted = 1, update_time = NOW() WHERE report_id = ?',
+    'UPDATE drafts SET is_deleted = 1, updated_at = NOW() WHERE report_id = ?',
     [reportId]
   )
   return result.affectedRows > 0
@@ -131,7 +142,7 @@ export async function deleteReport(reportId: string): Promise<boolean> {
 
 export async function listReportsByUser(userId: string, limit = 20) {
   const rows: any[] = await query(
-    'SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 ORDER BY create_time DESC LIMIT ?',
+    'SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 ORDER BY created_at DESC LIMIT ?',
     [userId, limit]
   )
   return rows.map(parseDraft)
@@ -190,6 +201,14 @@ export async function isOrderPaid(orderId: string): Promise<boolean> {
   return rows.length > 0
 }
 
+export async function listOrdersByUser(userId: string, limit = 20) {
+  const rows: any[] = await query(
+    'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+    [userId, limit]
+  )
+  return rows.map(parseOrder)
+}
+
 function parseOrder(row: any) {
   return {
     id: row.order_id,
@@ -240,7 +259,7 @@ export async function purchaseMember(
     await query(
       `UPDATE members SET level = ?, plan_id = ?, plan_name = ?,
        total_times = total_times + ?, remain_times = GREATEST(0, remain_times) + ?,
-       expire_time = ?, renew_discount = ?, is_deleted = 0, update_time = NOW()
+       expire_time = ?, renew_discount = ?, is_deleted = 0, updated_at = NOW()
        WHERE user_id = ?`,
       [String(level), planId, planName, times, times, expireTimeStr, renewDiscount, userId]
     )
@@ -282,6 +301,86 @@ function parseMember(row: any) {
     isDeleted: row.is_deleted === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+// ============================================================
+// 商城商品（goods）和商城订单（mall_orders）
+// ============================================================
+
+export async function listGoods() {
+  const rows: any[] = await query(
+    'SELECT * FROM goods WHERE status = 1 ORDER BY id ASC'
+  )
+  return rows.map(parseGoods)
+}
+
+export async function getGoods(goodsId: number) {
+  const rows: any[] = await query('SELECT * FROM goods WHERE id = ? AND status = 1 LIMIT 1', [goodsId])
+  if (!rows[0]) return null
+  return parseGoods(rows[0])
+}
+
+export async function createMallOrder(
+  orderId: string,
+  userId: string,
+  goodsId: number,
+  goodsName: string,
+  amount: number
+) {
+  await insert(
+    'INSERT INTO mall_orders (order_id, user_id, goods_id, goods_name, amount) VALUES (?,?,?,?,?)',
+    [orderId, userId, goodsId, goodsName, amount]
+  )
+}
+
+export async function getMallOrder(orderId: string) {
+  const rows: any[] = await query('SELECT * FROM mall_orders WHERE order_id = ? LIMIT 1', [orderId])
+  if (!rows[0]) return null
+  return parseMallOrder(rows[0])
+}
+
+export async function updateMallOrderPaid(orderId: string, wechatTradeNo: string, downloadUrl: string) {
+  await query(
+    'UPDATE mall_orders SET pay_status=?, wechat_trade_no=?, paid_at=NOW(), download_url=? WHERE order_id=?',
+    ['success', wechatTradeNo, downloadUrl, orderId]
+  )
+}
+
+export async function listUserMallOrders(userId: string) {
+  const rows: any[] = await query(
+    'SELECT * FROM mall_orders WHERE user_id = ? AND pay_status = ? ORDER BY created_at DESC',
+    [userId, 'success']
+  )
+  return rows.map(parseMallOrder)
+}
+
+function parseGoods(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    price: row.price,
+    productType: row.product_type,
+    coverImage: row.cover_image,
+    fileUrl: row.file_url,
+    description: row.description,
+    status: row.status,
+  }
+}
+
+function parseMallOrder(row: any) {
+  return {
+    id: row.order_id,
+    orderId: row.order_id,
+    userId: row.user_id,
+    goodsId: row.goods_id,
+    goodsName: row.goods_name,
+    amount: row.amount,
+    payStatus: row.pay_status,
+    wechatTradeNo: row.wechat_trade_no,
+    paidAt: row.paid_at,
+    downloadUrl: row.download_url,
+    createdAt: row.created_at,
   }
 }
 
@@ -360,6 +459,34 @@ export async function ensureTables() {
       user_agent   TEXT         DEFAULT NULL,
       created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+
+    `CREATE TABLE IF NOT EXISTS goods (
+      id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name         VARCHAR(128) NOT NULL,
+      price        INT UNSIGNED NOT NULL COMMENT '金额分',
+      product_type VARCHAR(20)  NOT NULL COMMENT 'ebook|material',
+      cover_image  VARCHAR(255) DEFAULT '',
+      file_url     VARCHAR(255) DEFAULT '',
+      description  TEXT         DEFAULT NULL,
+      status       TINYINT(1)   DEFAULT 1,
+      created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+
+    `CREATE TABLE IF NOT EXISTS mall_orders (
+      order_id        VARCHAR(36)  PRIMARY KEY,
+      user_id         VARCHAR(64)  NOT NULL,
+      goods_id        INT UNSIGNED NOT NULL,
+      goods_name      VARCHAR(128) NOT NULL,
+      amount          INT UNSIGNED NOT NULL COMMENT '金额分',
+      pay_status      VARCHAR(20)  DEFAULT 'pending',
+      wechat_trade_no  VARCHAR(64)  DEFAULT '',
+      paid_at         TIMESTAMP    DEFAULT 0,
+      download_url    VARCHAR(255) DEFAULT '',
+      created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user_id (user_id),
+      INDEX idx_goods_id (goods_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
   ]
 
   for (const stmt of statements) {
@@ -372,5 +499,22 @@ export async function ensureTables() {
       throw e // 失败就抛出来，不要静默
     }
   }
-  console.log('[MySQL] 五张表检查完成')
+  console.log('[MySQL] 七张表检查完成')
+
+  // 种子商品数据（¥198电子书 + ¥299素材库）
+  const seedGoods = [
+    [1, '纠纷维权实战电子书', 19800, 'ebook', '/images/shop-ebook.png', '', '14类纠纷场景深度解析，200+真实案例拆解'],
+    [2, '维权素材模板库', 29900, 'material', '/images/shop-material.png', '', '起诉状/律师函/证据清单等8大类法律文书模板'],
+  ]
+  for (const [id, name, price, type, cover, url, desc] of seedGoods) {
+    try {
+      await query(
+        'INSERT IGNORE INTO goods (id, name, price, product_type, cover_image, file_url, description) VALUES (?,?,?,?,?,?,?)',
+        [id, name, price, type, cover, url, desc]
+      )
+      console.log(`[MySQL] 商品种子: ${name}`)
+    } catch (e: any) {
+      console.warn(`[MySQL] 种子商品跳过: ${e.message}`)
+    }
+  }
 }
