@@ -2,7 +2,7 @@
 import { generateReport } from './report.service.js'
 import { scanBannedWords } from '../../data/banned-words.js'
 import { generatePdfTask, getPdfTaskStatus } from './pdf.service.js'
-import { saveReport, getReport as getReportDb, deleteReport, listReportsByUser } from '../../db/store.js'
+import { saveReport, getReport as getReportDb, deleteReport, listReportsByUser, generateReportNo } from '../../db/store.js'
 
 export async function reportRoutes(fastify) {
 
@@ -36,11 +36,14 @@ export async function reportRoutes(fastify) {
     } catch (_) { /* 未登录允许生成 */ }
 
     const reportId = 'R' + Date.now() + Math.random().toString(36).slice(2, 10)
+    // 生成标准业务编号
+    const reportNo = await generateReportNo()
 
     // P1-1：标记【生成中】(genStatus=1)，先落库锁定
     try {
       await saveReport(reportId, {
         userId,
+        reportNo,
         scene,
         subType: subType || '',
         amount: amount || '待确认',
@@ -121,6 +124,7 @@ export async function reportRoutes(fastify) {
         success: true,
         report: {
           reportId: draft.reportId,
+          reportNo: draft.reportNo || '',
           scene: draft.scene,
           ...filtered,
           locked: draft.isLocked,

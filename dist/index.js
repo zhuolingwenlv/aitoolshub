@@ -182,13 +182,16 @@ __export(store_exports, {
   findOrCreateUser: () => findOrCreateUser,
   findUserByOpenid: () => findUserByOpenid,
   findUserByPhone: () => findUserByPhone,
+  generateReportNo: () => generateReportNo,
   getGoods: () => getGoods,
   getMallOrder: () => getMallOrder,
   getMemberInfo: () => getMemberInfo,
   getOrder: () => getOrder,
   getReport: () => getReport,
+  getRevenueStats: () => getRevenueStats,
   isMember: () => isMember,
   isOrderPaid: () => isOrderPaid,
+  listAllOrders: () => listAllOrders,
   listGoods: () => listGoods,
   listOrdersByUser: () => listOrdersByUser,
   listReportsByUser: () => listReportsByUser,
@@ -254,6 +257,7 @@ function parseUser(row) {
 async function saveReport(reportId, data) {
   const {
     userId,
+    reportNo = "",
     scene = "",
     subType = "",
     amount = "",
@@ -274,6 +278,10 @@ async function saveReport(reportId, data) {
   if (existing.length > 0) {
     const sets = [];
     const vals = [];
+    if (data.reportNo !== void 0) {
+      sets.push("report_no=?");
+      vals.push(reportNo);
+    }
     if (data.scene !== void 0) {
       sets.push("scene=?");
       vals.push(scene);
@@ -329,11 +337,12 @@ async function saveReport(reportId, data) {
     }
   } else {
     await insert(
-      `INSERT INTO drafts (report_id, user_id, scene, sub_type, amount, focus, status, evidence,
+      `INSERT INTO drafts (report_id, report_no, user_id, scene, sub_type, amount, focus, status, evidence,
        member_level, report_data, is_locked, gen_status, report_version, order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         reportId,
+        reportNo,
         userId,
         scene,
         subType,
@@ -374,6 +383,7 @@ function parseDraft(row) {
   return {
     id: row.report_id,
     reportId: row.report_id,
+    reportNo: row.report_no || "",
     userId: row.user_id,
     scene: row.scene,
     subType: row.sub_type,
@@ -576,6 +586,7 @@ async function ensureTables2() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
     `CREATE TABLE IF NOT EXISTS drafts (
       report_id     VARCHAR(36)  PRIMARY KEY,
+      report_no     VARCHAR(20)  DEFAULT '' COMMENT '\u4E1A\u52A1\u7F16\u53F7QX-YYYYMMDD-NNN',
       user_id       VARCHAR(64)  NOT NULL,
       scene         VARCHAR(50)  DEFAULT '',
       sub_type      VARCHAR(64)  DEFAULT '',
@@ -657,6 +668,11 @@ async function ensureTables2() {
       INDEX idx_user_id (user_id),
       INDEX idx_pay_status (pay_status),
       INDEX idx_goods_id (goods_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+    `CREATE TABLE IF NOT EXISTS sequences (
+      seq_key    VARCHAR(30)  PRIMARY KEY COMMENT 'report_YYYYMMDD',
+      seq_value  INT UNSIGNED DEFAULT 0,
+      updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
   ];
   for (const stmt of statements) {
@@ -669,7 +685,7 @@ async function ensureTables2() {
       throw e;
     }
   }
-  console.log("[MySQL] \u4E03\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
+  console.log("[MySQL] \u516B\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
   const seedGoods = [
     [1, "\u6D88\u8D39\u8005\u7EA0\u7EB7\u68B3\u7406\u4E0E\u666E\u6CD5\u64CD\u4F5C\u6307\u5357", 19800, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u68B3\u7406\uFF0C280+\u9875\u7535\u5B50\u7248\u6C47\u7F16\u5DE5\u5177\u4E66"],
     [2, "\u5168\u884C\u4E1A\u6C38\u4E45\u5DE5\u5177\u7D20\u6750\u5E93", 29900, "material", "/images/shop-material.png", "", "\u5168\u884C\u4E1A\u6A21\u677F\u5408\u96C6\uFF0C\u53EF\u7F16\u8F91\u53EF\u5BFC\u51FA\uFF0C\u7EC8\u8EAB\u66F4\u65B0\u6743\u76CA"]
@@ -685,6 +701,68 @@ async function ensureTables2() {
       console.warn(`[MySQL] \u79CD\u5B50\u5546\u54C1\u8DF3\u8FC7: ${e.message}`);
     }
   }
+}
+async function generateReportNo() {
+  const now = /* @__PURE__ */ new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const seqKey = "report_" + y + m + d;
+  await query(
+    "INSERT INTO sequences (seq_key, seq_value) VALUES (?, 1) ON DUPLICATE KEY UPDATE seq_value = seq_value + 1",
+    [seqKey]
+  );
+  const rows = await query("SELECT seq_value FROM sequences WHERE seq_key = ? LIMIT 1", [seqKey]);
+  const seq = String(rows[0]?.seq_value || 1).padStart(3, "0");
+  return "QX-" + y + m + d + "-" + seq;
+}
+async function getRevenueStats() {
+  const [today] = await query(
+    "SELECT COALESCE(SUM(amount),0) as todayRevenue, COUNT(*) as todayOrders FROM orders WHERE pay_status='success' AND DATE(paid_at)=CURDATE()"
+  );
+  const [month] = await query(
+    "SELECT COALESCE(SUM(amount),0) as monthRevenue, COUNT(*) as monthOrders FROM orders WHERE pay_status='success' AND YEAR(paid_at)=YEAR(NOW()) AND MONTH(paid_at)=MONTH(NOW())"
+  );
+  const [total] = await query(
+    "SELECT COALESCE(SUM(amount),0) as totalRevenue, COUNT(*) as totalOrders FROM orders WHERE pay_status='success'"
+  );
+  const [mallTotal] = await query(
+    "SELECT COALESCE(SUM(amount),0) as mallRevenue, COUNT(*) as mallOrders FROM mall_orders WHERE pay_status='success'"
+  );
+  return {
+    today: { revenue: Number(today?.todayRevenue || 0), orders: Number(today?.todayOrders || 0) },
+    thisMonth: { revenue: Number(month?.monthRevenue || 0), orders: Number(month?.monthOrders || 0) },
+    total: { revenue: Number(total?.totalRevenue || 0) + Number(mallTotal?.mallRevenue || 0), orders: Number(total?.totalOrders || 0) + Number(mallTotal?.mallOrders || 0) },
+    mall: { revenue: Number(mallTotal?.mallRevenue || 0), orders: Number(mallTotal?.mallOrders || 0) }
+  };
+}
+async function listAllOrders(page = 1, pageSize = 20) {
+  const offset = (page - 1) * pageSize;
+  const rows = await query(
+    `SELECT order_id, user_id, plan_name as product_name, amount, pay_status, paid_at, created_at, 'member' as order_type FROM orders
+     UNION ALL
+     SELECT order_id, user_id, goods_name as product_name, amount, pay_status, paid_at, created_at, 'mall' as order_type FROM mall_orders
+     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    [pageSize, offset]
+  );
+  const [cnt] = await query(
+    `SELECT (SELECT COUNT(*) FROM orders) + (SELECT COUNT(*) FROM mall_orders) as total`
+  );
+  return {
+    list: rows.map((r) => ({
+      orderId: r.order_id,
+      userId: r.user_id,
+      productName: r.product_name,
+      amount: Number(r.amount),
+      payStatus: r.pay_status,
+      paidAt: r.paid_at,
+      createdAt: r.created_at,
+      orderType: r.order_type
+    })),
+    total: Number(cnt?.total || 0),
+    page,
+    pageSize
+  };
 }
 var verifyCodes;
 var init_store = __esm({
@@ -4748,9 +4826,11 @@ async function reportRoutes(fastify) {
     } catch (_) {
     }
     const reportId = "R" + Date.now() + Math.random().toString(36).slice(2, 10);
+    const reportNo = await generateReportNo();
     try {
       await saveReport(reportId, {
         userId,
+        reportNo,
         scene,
         subType: subType || "",
         amount: amount || "\u5F85\u786E\u8BA4",
@@ -4823,6 +4903,7 @@ async function reportRoutes(fastify) {
         success: true,
         report: {
           reportId: draft.reportId,
+          reportNo: draft.reportNo || "",
           scene: draft.scene,
           ...filtered,
           locked: draft.isLocked,

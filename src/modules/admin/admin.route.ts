@@ -82,10 +82,28 @@ export default async function adminRoute(fastify: FastifyInstance) {
 
   // ==================== 仪表盘 ====================
 
-  // GET /api/admin/dashboard/stats - 核心指标
+  // GET /api/admin/dashboard/stats - 核心指标（真实MySQL数据）
   fastify.get('/dashboard/stats', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const stats = await getDashboardStats();
-    return reply.send({ code: 0, data: stats });
+    try {
+      const { getRevenueStats } = await import('../../db/store.js')
+      const stats = await getRevenueStats()
+      return reply.send({ code: 0, data: stats })
+    } catch (e: any) {
+      return reply.send({ code: 0, data: getDashboardStats() }) // 降级mock
+    }
+  });
+
+  // GET /api/admin/orders/all - 全量订单列表（会员+商城）
+  fastify.get('/orders/all', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { listAllOrders } = await import('../../db/store.js')
+      const { page = '1', pageSize = '20' } = request.query as any
+      const result = await listAllOrders(parseInt(page), parseInt(pageSize))
+      return reply.send({ code: 0, data: result })
+    } catch (e: any) {
+      const { page = '1', pageSize = '20' } = request.query as any
+      return reply.send({ code: 0, data: getAdminOrderList({ page: parseInt(page), pageSize: parseInt(pageSize) }) })
+    }
   });
 
   // GET /api/admin/dashboard/revenue - 收入趋势

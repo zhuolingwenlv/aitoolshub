@@ -79,6 +79,7 @@ function parseUser(row: any) {
 export async function saveReport(reportId: string, data: any) {
   const {
     userId,
+    reportNo = '',
     scene = '',
     subType = '',
     amount = '',
@@ -102,6 +103,7 @@ export async function saveReport(reportId: string, data: any) {
     // 部分更新：只更新明确传入的字段
     const sets: string[] = []
     const vals: any[] = []
+    if (data.reportNo !== undefined) { sets.push('report_no=?'); vals.push(reportNo) }
     if (data.scene !== undefined) { sets.push('scene=?'); vals.push(scene) }
     if (data.subType !== undefined) { sets.push('sub_type=?'); vals.push(subType) }
     if (data.amount !== undefined) { sets.push('amount=?'); vals.push(amount) }
@@ -121,10 +123,10 @@ export async function saveReport(reportId: string, data: any) {
     }
   } else {
     await insert(
-      `INSERT INTO drafts (report_id, user_id, scene, sub_type, amount, focus, status, evidence,
+      `INSERT INTO drafts (report_id, report_no, user_id, scene, sub_type, amount, focus, status, evidence,
        member_level, report_data, is_locked, gen_status, report_version, order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [reportId, userId, scene, subType, amount, focusJson, status, evidenceJson,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [reportId, reportNo, userId, scene, subType, amount, focusJson, status, evidenceJson,
        memberLevel, reportDataJson, isLocked ? 1 : 0, genStatus, reportVersion, orderId]
     )
   }
@@ -156,6 +158,7 @@ function parseDraft(row: any) {
   return {
     id: row.report_id,
     reportId: row.report_id,
+    reportNo: row.report_no || '',
     userId: row.user_id,
     scene: row.scene,
     subType: row.sub_type,
@@ -410,6 +413,7 @@ export async function ensureTables() {
 
     `CREATE TABLE IF NOT EXISTS drafts (
       report_id     VARCHAR(36)  PRIMARY KEY,
+      report_no     VARCHAR(20)  DEFAULT '' COMMENT '业务编号QX-YYYYMMDD-NNN',
       user_id       VARCHAR(64)  NOT NULL,
       scene         VARCHAR(50)  DEFAULT '',
       sub_type      VARCHAR(64)  DEFAULT '',
@@ -497,6 +501,12 @@ export async function ensureTables() {
       INDEX idx_pay_status (pay_status),
       INDEX idx_goods_id (goods_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
+
+    `CREATE TABLE IF NOT EXISTS sequences (
+      seq_key    VARCHAR(30)  PRIMARY KEY COMMENT 'report_YYYYMMDD',
+      seq_value  INT UNSIGNED DEFAULT 0,
+      updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
   ]
 
   for (const stmt of statements) {
@@ -509,7 +519,7 @@ export async function ensureTables() {
       throw e // 失败就抛出来，不要静默
     }
   }
-  console.log('[MySQL] 七张表检查完成')
+  console.log('[MySQL] 八张表检查完成')
 
   // 种子商品数据（¥198电子书 + ¥299素材库）
   const seedGoods = [
@@ -526,5 +536,80 @@ export async function ensureTables() {
     } catch (e: any) {
       console.warn(`[MySQL] 种子商品跳过: ${e.message}`)
     }
+  }
+}
+
+// ============================================================
+// 报告编号生成器（QX-YYYYMMDD-NNN 每日序列）
+// ============================================================
+export async function generateReportNo(): Promise<string> {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  const seqKey = 'report_' + y + m + d
+
+  // 原子自增
+  await query(
+    'INSERT INTO sequences (seq_key, seq_value) VALUES (?, 1) ON DUPLICATE KEY UPDATE seq_value = seq_value + 1',
+    [seqKey]
+  )
+  const rows = await query('SELECT seq_value FROM sequences WHERE seq_key = ? LIMIT 1', [seqKey])
+  const seq = String(rows[0]?.seq_value || 1).padStart(3, '0')
+  return 'QX-' + y + m + d + '-' + seq
+}
+
+// ============================================================
+// 财务管理：订单汇总 + 收入统计
+// ============================================================
+export async function getRevenueStats() {
+  const [today] = await query(
+    "SELECT COALESCE(SUM(amount),0) as todayRevenue, COUNT(*) as todayOrders FROM orders WHERE pay_status='success' AND DATE(paid_at)=CURDATE()"
+  )
+  const [month] = await query(
+    "SELECT COALESCE(SUM(amount),0) as monthRevenue, COUNT(*) as monthOrders FROM orders WHERE pay_status='success' AND YEAR(paid_at)=YEAR(NOW()) AND MONTH(paid_at)=MONTH(NOW())"
+  )
+  const [total] = await query(
+    "SELECT COALESCE(SUM(amount),0) as totalRevenue, COUNT(*) as totalOrders FROM orders WHERE pay_status='success'"
+  )
+  // 商城订单
+  const [mallTotal] = await query(
+    "SELECT COALESCE(SUM(amount),0) as mallRevenue, COUNT(*) as mallOrders FROM mall_orders WHERE pay_status='success'"
+  )
+  return {
+    today: { revenue: Number(today?.todayRevenue || 0), orders: Number(today?.todayOrders || 0) },
+    thisMonth: { revenue: Number(month?.monthRevenue || 0), orders: Number(month?.monthOrders || 0) },
+    total: { revenue: Number(total?.totalRevenue || 0) + Number(mallTotal?.mallRevenue || 0), orders: Number(total?.totalOrders || 0) + Number(mallTotal?.mallOrders || 0) },
+    mall: { revenue: Number(mallTotal?.mallRevenue || 0), orders: Number(mallTotal?.mallOrders || 0) },
+  }
+}
+
+export async function listAllOrders(page = 1, pageSize = 20) {
+  const offset = (page - 1) * pageSize
+  // 合并会员订单和商城订单
+  const rows = await query(
+    `SELECT order_id, user_id, plan_name as product_name, amount, pay_status, paid_at, created_at, 'member' as order_type FROM orders
+     UNION ALL
+     SELECT order_id, user_id, goods_name as product_name, amount, pay_status, paid_at, created_at, 'mall' as order_type FROM mall_orders
+     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    [pageSize, offset]
+  )
+  const [cnt] = await query(
+    `SELECT (SELECT COUNT(*) FROM orders) + (SELECT COUNT(*) FROM mall_orders) as total`
+  )
+  return {
+    list: rows.map((r: any) => ({
+      orderId: r.order_id,
+      userId: r.user_id,
+      productName: r.product_name,
+      amount: Number(r.amount),
+      payStatus: r.pay_status,
+      paidAt: r.paid_at,
+      createdAt: r.created_at,
+      orderType: r.order_type,
+    })),
+    total: Number(cnt?.total || 0),
+    page,
+    pageSize,
   }
 }
