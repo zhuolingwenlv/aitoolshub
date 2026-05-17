@@ -15,7 +15,7 @@ import { LAW_LIBRARY, DEFAULT_LAWS } from '../../data/law-library.js';
 import { PROCESS_NODES, STATUS_STAGE_MAP, getProcessPath } from '../../data/process-library.js';
 import { getStats } from '../../data/statistics-database.js';
 import { EVIDENCE_ITEMS } from '../../data/evidence-definitions.js';
-import { generateAIInsights, isLLMAvailable } from './llm.service.js';
+import { generateAIInsights, isLLMAvailable, getLLMLastError } from './llm.service.js';
 
 // 预构建 EVIDENCE_ITEMS_MAP（避免 import 时机问题）
 const EVIDENCE_ITEMS_MAP = Object.fromEntries(EVIDENCE_ITEMS.map(e => [e.id, e]));
@@ -735,6 +735,7 @@ export async function generateReport({ scene, subType, amount, focus = [], statu
     locked: isLocked,
     lockModules,
     aiGenerated: !!aiInsights,
+    _llmError: aiInsights ? null : getLLMLastError(),
     m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11,
   };
 }

@@ -1,26 +1,30 @@
 /**
- * LLM 大模型服务
- * 硅基流动 DeepSeek-V3 → 报告AI分析
- * 调用失败自动降级到模板数据
+ * LLM 大模型服务 v2
+ * Node18原生fetch调用硅基流动 DeepSeek-V3
+ * 降级：失败自动回模板
  */
-import axios from 'axios'
-
 const SILICONFLOW_BASE = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1'
 const SILICONFLOW_KEY = process.env.SILICONFLOW_API_KEY || ''
 const MODEL = 'deepseek-ai/DeepSeek-V3-0324'
+const hasKey = !!SILICONFLOW_KEY
 
-let hasKey = !!SILICONFLOW_KEY
+// 诊断：最后一次错误
+let lastError = null
 
-/**
- * 调用LLM（带30秒超时+自动降级）
- */
 async function callLLM(systemPrompt, userPrompt) {
-  if (!hasKey) return null
+  if (!hasKey) { lastError = 'SILICONFLOW_API_KEY未配置'; return null }
 
   try {
-    const res = await axios.post(
-      `${SILICONFLOW_BASE}/chat/completions`,
-      {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30000)
+
+    const res = await fetch(`${SILICONFLOW_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + SILICONFLOW_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         model: MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -29,18 +33,24 @@ async function callLLM(systemPrompt, userPrompt) {
         temperature: 0.7,
         max_tokens: 4096,
         response_format: { type: 'json_object' }
-      },
-      {
-        headers: {
-          'Authorization': 'Bearer ' + SILICONFLOW_KEY,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      }
-    )
-    return res.data.choices[0].message.content
+      }),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeout)
+
+    if (!res.ok) {
+      const text = await res.text()
+      lastError = 'HTTP ' + res.status + ': ' + text.slice(0, 200)
+      console.error('[LLM] 非200响应:', lastError)
+      return null
+    }
+
+    const data = await res.json()
+    return data.choices[0].message.content
   } catch (err) {
-    console.error('[LLM] 调用失败:', err.message)
+    lastError = err.cause ? (err.cause + ' ' + err.message) : err.message
+    console.error('[LLM] 调用失败:', lastError)
     return null
   }
 }
@@ -49,13 +59,16 @@ export function isLLMAvailable() {
   return hasKey
 }
 
+export function getLLMLastError() {
+  return lastError
+}
+
 /**
- * AI生成报告核心分析（四模块）
- * 返回 JSON 字符串 → 解析后合并到模板报告
+ * AI生成报告核心分析
  */
 export async function generateAIInsights(input) {
-  const systemPrompt = `你是启信通的智能纠纷诊断AI。你只返回合法JSON，不输出任何其他内容。`
-  
+  const systemPrompt = '你是启信通的智能纠纷诊断AI。只返回合法JSON。'
+
   const userPrompt = `分析以下维权纠纷，输出JSON：
 
 **纠纷信息：**
@@ -66,16 +79,16 @@ export async function generateAIInsights(input) {
 - 补充描述：${input.memo || '无'}
 - 已有证据：${(input.evidence || []).map(e => typeof e === 'string' ? e : (e.label || e.id || '')).join('、') || '无'}
 
-请返回严格JSON：
+返回严格JSON：
 {
-  "disputeCore": "争议本质一句话（20字内）",
-  "keyIssues": ["核心问题1", "核心问题2", "核心问题3"],
-  "analysis": "争议深度分析（150-200字，从事实、证据、法律三层面分析）",
-  "riskAssessment": {"level": "高/中/低", "points": ["风险点1", "风险点2"]},
-  "strengths": ["有利因素1", "有利因素2"],
-  "weaknesses": ["不利因素1", "不利因素2"],
-  "strategy": "最优策略建议（100字）",
-  "nextSteps": ["立即行动1", "立即行动2", "后续步骤3"],
+  "disputeCore": "争议本质（20字内）",
+  "keyIssues": ["问题1","问题2","问题3"],
+  "analysis": "深度分析（150-200字）",
+  "riskAssessment": {"level": "高/中/低", "points": ["风险点"]},
+  "strengths": ["有利因素"],
+  "weaknesses": ["不利因素"],
+  "strategy": "最优策略（100字）",
+  "nextSteps": ["行动1","行动2","步骤3"],
   "tips": "一句话提醒"
 }`
 
