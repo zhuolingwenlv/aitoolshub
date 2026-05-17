@@ -4875,6 +4875,38 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25", reportId });
     }
   });
+  fastify.get("/list", async (request, reply) => {
+    var userId = "";
+    try {
+      var token = (request.headers.authorization || "").replace("Bearer ", "");
+      if (token) {
+        var decoded = fastify.jwt.verify(token);
+        userId = decoded.phone || decoded.id || "";
+      }
+    } catch (_) {
+    }
+    try {
+      var reports = await listReportsByUser(userId || "anonymous", 50);
+      return {
+        success: true,
+        reports: reports.map(function(r) {
+          return {
+            reportId: r.reportId,
+            reportNo: r.reportNo || "",
+            typeName: r.scene || "\u7EA0\u7EB7\u68B3\u7406",
+            scene: r.scene,
+            date: r.createdAt || "",
+            paid: !r.isLocked,
+            statusLabel: r.isLocked ? "\u6A21\u7CCA\u7248" : "\u9AD8\u6E05\u4ED8\u8D39\u7248",
+            statusClass: r.isLocked ? "locked" : "unlocked"
+          };
+        })
+      };
+    } catch (e) {
+      console.error("[Report] \u5217\u8868\u67E5\u8BE2\u5931\u8D25:", e);
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
+    }
+  });
   fastify.get("/:reportId", async (request, reply) => {
     const { reportId } = request.params || {};
     if (!reportId) {

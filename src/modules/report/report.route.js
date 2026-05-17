@@ -90,6 +90,40 @@ export async function reportRoutes(fastify) {
     }
   })
 
+  // ── 报告列表（GET /api/v1/report/list）—— 从MySQL读取，不依赖本地存储
+  fastify.get('/list', async (request, reply) => {
+    var userId = ''
+    try {
+      var token = (request.headers.authorization || '').replace('Bearer ', '')
+      if (token) {
+        var decoded = fastify.jwt.verify(token)
+        userId = decoded.phone || decoded.id || ''
+      }
+    } catch(_) {}
+
+    try {
+      var reports = await listReportsByUser(userId || 'anonymous', 50)
+      return {
+        success: true,
+        reports: reports.map(function(r) {
+          return {
+            reportId: r.reportId,
+            reportNo: r.reportNo || '',
+            typeName: r.scene || '纠纷梳理',
+            scene: r.scene,
+            date: r.createdAt || '',
+            paid: !r.isLocked,
+            statusLabel: r.isLocked ? '模糊版' : '高清付费版',
+            statusClass: r.isLocked ? 'locked' : 'unlocked',
+          }
+        }),
+      }
+    } catch(e) {
+      console.error('[Report] 列表查询失败:', e)
+      return reply.status(500).send({ success: false, error: '查询失败' })
+    }
+  })
+
   // 查询报告（GET /api/v1/report/:reportId）—— 双版本鉴权
   fastify.get('/:reportId', async (request, reply) => {
     const { reportId } = request.params || {}
