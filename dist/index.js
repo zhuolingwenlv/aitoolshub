@@ -4957,6 +4957,39 @@ setInterval(() => {
 // src/modules/report/report.route.js
 init_store();
 async function reportRoutes(fastify) {
+  async function _handleGetReport(fastify2, request, reply) {
+    const { reportId } = request.params || {};
+    if (!reportId) return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u62A5\u544AID" });
+    let userLevel = 0;
+    try {
+      const token = request.headers.authorization?.replace("Bearer ", "");
+      if (token) {
+        const decoded = fastify2.jwt.verify(token);
+        const { findUserByOpenid: findUserByOpenid2 } = await Promise.resolve().then(() => (init_store(), store_exports));
+        const user = await findUserByOpenid2(decoded.openid || decoded.phone || "");
+        userLevel = user?.memberLevel || 0;
+      }
+    } catch (_) {
+    }
+    try {
+      let draft = await getReport(reportId);
+      if (!draft && reportId.startsWith("QX-")) {
+        const { query: query2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
+        const byNo = await query2("SELECT * FROM drafts WHERE report_no = ? AND is_deleted = 0 LIMIT 1", [reportId]);
+        if (byNo.length > 0 && byNo[0].report_id) {
+          draft = await getReport(byNo[0].report_id);
+        }
+      }
+      if (!draft) return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+      const isBlur = draft.isLocked && userLevel === 0;
+      const reportData = draft.reportData || {};
+      const filtered = isBlur ? filterBlur(reportData) : reportData;
+      return { success: true, report: { reportId: draft.reportId, reportNo: draft.reportNo || "", scene: draft.scene, ...filtered, locked: draft.isLocked, isLocked: draft.isLocked, genStatus: draft.genStatus, reportVersion: isBlur ? "blur" : "hd" } };
+    } catch (err) {
+      console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err.message, err.stack?.split("\\\\n").slice(0, 2).join(" | "));
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25", detail: err.message });
+    }
+  }
   fastify.post("/generate", async (request, reply) => {
     const body = request.body || {};
     const { scene, subType, amount, focus, status, evidence = [], memberLevel = 0, memo = "" } = body;
@@ -5078,47 +5111,14 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
   });
+  fastify.get("/get", async (request, reply) => {
+    const reportId = (request.query || {}).reportId || "";
+    if (!reportId) return reply.status(400).send({ success: false, error: "\u7F3A\u5C11reportId\u53C2\u6570" });
+    request.params = { reportId };
+    return _handleGetReport(fastify, request, reply);
+  });
   fastify.get("/:reportId", async (request, reply) => {
-    const { reportId } = request.params || {};
-    if (!reportId) {
-      return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u62A5\u544AID" });
-    }
-    let userLevel = 0;
-    try {
-      const token = request.headers.authorization?.replace("Bearer ", "");
-      if (token) {
-        const decoded = fastify.jwt.verify(token);
-        const { findUserByOpenid: findUserByOpenid2 } = await Promise.resolve().then(() => (init_store(), store_exports));
-        const user = await findUserByOpenid2(decoded.openid || decoded.phone || "");
-        userLevel = user?.memberLevel || 0;
-      }
-    } catch (_) {
-    }
-    try {
-      const draft = await getReport(reportId);
-      if (!draft) {
-        return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
-      }
-      const isBlur = draft.isLocked && userLevel === 0;
-      const reportData = draft.reportData || {};
-      const filtered = isBlur ? filterBlur(reportData) : reportData;
-      return {
-        success: true,
-        report: {
-          reportId: draft.reportId,
-          reportNo: draft.reportNo || "",
-          scene: draft.scene,
-          ...filtered,
-          locked: draft.isLocked,
-          isLocked: draft.isLocked,
-          genStatus: draft.genStatus,
-          reportVersion: isBlur ? "blur" : "hd"
-        }
-      };
-    } catch (err) {
-      console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err.message, err.stack?.split("\\n").slice(0, 2).join(" | "));
-      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25", detail: err.message });
-    }
+    return _handleGetReport(fastify, request, reply);
   });
   fastify.post("/:reportId/share", async (request, reply) => {
     const { reportId } = request.params || {};

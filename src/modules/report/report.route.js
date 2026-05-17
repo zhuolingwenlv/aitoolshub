@@ -6,6 +6,44 @@ import { saveReport, getReport as getReportDb, deleteReport, listReportsByUser, 
 
 export async function reportRoutes(fastify) {
 
+  // ── 共享查询报告处理函数（被 /get 和 /:reportId 共用）──
+  async function _handleGetReport(fastify2, request, reply) {
+    const { reportId } = request.params || {}
+    if (!reportId) return reply.status(400).send({ success: false, error: '缺少报告ID' })
+
+    let userLevel = 0
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (token) {
+        const decoded = fastify2.jwt.verify(token)
+        const { findUserByOpenid } = await import('../../db/store.js')
+        const user = await findUserByOpenid(decoded.openid || decoded.phone || '')
+        userLevel = user?.memberLevel || 0
+      }
+    } catch (_) {}
+
+    try {
+      let draft = await getReportDb(reportId)
+      // QX-格式兜底：用 reportNo 查
+      if (!draft && reportId.startsWith('QX-')) {
+        const { query } = await import('../../db/mysql.js')
+        const byNo = await query('SELECT * FROM drafts WHERE report_no = ? AND is_deleted = 0 LIMIT 1', [reportId])
+        if (byNo.length > 0 && byNo[0].report_id) {
+          draft = await getReportDb(byNo[0].report_id)
+        }
+      }
+      if (!draft) return reply.status(404).send({ success: false, error: '报告不存在' })
+
+      const isBlur = draft.isLocked && userLevel === 0
+      const reportData = draft.reportData || {}
+      const filtered = isBlur ? filterBlur(reportData) : reportData
+      return { success: true, report: { reportId: draft.reportId, reportNo: draft.reportNo||'', scene: draft.scene, ...filtered, locked: draft.isLocked, isLocked: draft.isLocked, genStatus: draft.genStatus, reportVersion: isBlur?'blur':'hd' } }
+    } catch (err) {
+      console.error('查询报告失败:', err.message, err.stack?.split('\\\\n').slice(0,2).join(' | '))
+      return reply.status(500).send({ success: false, error: '查询失败', detail: err.message })
+    }
+  }
+
   // 生成报告（POST /api/v1/report/generate）
   fastify.post('/generate', async (request, reply) => {
     const body = request.body || {}
@@ -140,53 +178,17 @@ export async function reportRoutes(fastify) {
     }
   })
 
+  // ── 查询报告（GET /api/v1/report/get?reportId=xxx）— 兼容旧前端 ──
+  fastify.get('/get', async (request, reply) => {
+    const reportId = (request.query || {}).reportId || ''
+    if (!reportId) return reply.status(400).send({ success: false, error: '缺少reportId参数' })
+    request.params = { reportId }
+    return _handleGetReport(fastify, request, reply)
+  })
+
   // ── 查询报告（GET /api/v1/report/:reportId）
   fastify.get('/:reportId', async (request, reply) => {
-    const { reportId } = request.params || {}
-
-    if (!reportId) {
-      return reply.status(400).send({ success: false, error: '缺少报告ID' })
-    }
-
-    // 判断用户是否已付费（token中查会员等级）
-    let userLevel = 0
-    try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (token) {
-        const decoded = fastify.jwt.verify(token)
-        const { findUserByOpenid } = await import('../../db/store.js')
-        const user = await findUserByOpenid(decoded.openid || decoded.phone || '')
-        userLevel = user?.memberLevel || 0
-      }
-    } catch (_) {}
-
-    try {
-      const draft = await getReportDb(reportId)
-      if (!draft) {
-        return reply.status(404).send({ success: false, error: '报告不存在' })
-      }
-
-      const isBlur = draft.isLocked && userLevel === 0
-      const reportData = draft.reportData || {}
-      const filtered = isBlur ? filterBlur(reportData) : reportData
-
-      return {
-        success: true,
-        report: {
-          reportId: draft.reportId,
-          reportNo: draft.reportNo || '',
-          scene: draft.scene,
-          ...filtered,
-          locked: draft.isLocked,
-          isLocked: draft.isLocked,
-          genStatus: draft.genStatus,
-          reportVersion: isBlur ? 'blur' : 'hd',
-        },
-      }
-    } catch (err) {
-      console.error('查询报告失败:', err.message, err.stack?.split('\\n').slice(0,2).join(' | '))
-      return reply.status(500).send({ success: false, error: '查询失败', detail: err.message })
-    }
+    return _handleGetReport(fastify, request, reply)
   })
 
   // 生成分享链接（POST /api/v1/report/:reportId/share）
