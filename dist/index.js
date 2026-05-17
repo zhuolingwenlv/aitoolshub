@@ -3496,112 +3496,6 @@ var EVIDENCE_ITEMS_MAP = Object.fromEntries(EVIDENCE_ITEMS.map((e) => [e.id, e])
 // src/modules/report/llm.service.js
 var SILICONFLOW_BASE = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
 var SILICONFLOW_KEY = process.env.SILICONFLOW_API_KEY || "";
-var MODEL = "deepseek-ai/DeepSeek-V3";
-var hasKey = !!SILICONFLOW_KEY;
-var lastError = null;
-function httpsPost(url, headers, body, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    import("node:https").then((https) => {
-      const u = new URL(url);
-      const opts = {
-        hostname: u.hostname,
-        port: 443,
-        path: u.pathname + u.search,
-        method: "POST",
-        headers,
-        timeout: timeoutMs || 6e4
-      };
-      const req = https.request(opts, (res) => {
-        let data = "";
-        res.on("data", (chunk) => data += chunk);
-        res.on("end", () => resolve({ status: res.statusCode, body: data }));
-      });
-      req.on("timeout", () => {
-        req.destroy();
-        reject(new Error("ETIMEDOUT"));
-      });
-      req.on("error", reject);
-      req.write(body);
-      req.end();
-    }).catch(reject);
-  });
-}
-async function callLLM(systemPrompt, userPrompt) {
-  if (!hasKey) {
-    lastError = "SILICONFLOW_API_KEY\u672A\u914D\u7F6E";
-    return null;
-  }
-  try {
-    const res = await httpsPost(
-      `${SILICONFLOW_BASE}/chat/completions`,
-      {
-        "Authorization": "Bearer " + SILICONFLOW_KEY,
-        "Content-Type": "application/json"
-      },
-      JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 4096,
-        response_format: { type: "json_object" }
-      }),
-      6e4
-    );
-    if (res.status !== 200) {
-      lastError = "HTTP " + res.status + ": " + res.body.slice(0, 200);
-      console.error("[LLM] \u975E200\u54CD\u5E94:", lastError);
-      return null;
-    }
-    const data = JSON.parse(res.body);
-    return data.choices[0].message.content;
-  } catch (err) {
-    lastError = err.cause ? err.cause + " " + err.message : err.message || String(err);
-    console.error("[LLM] \u8C03\u7528\u5931\u8D25:", lastError);
-    return null;
-  }
-}
-function isLLMAvailable() {
-  return hasKey;
-}
-function getLLMLastError() {
-  return lastError;
-}
-async function generateAIInsights(input) {
-  const systemPrompt = "\u4F60\u662F\u542F\u4FE1\u901A\u7684\u667A\u80FD\u7EA0\u7EB7\u8BCA\u65ADAI\u3002\u53EA\u8FD4\u56DE\u5408\u6CD5JSON\u3002";
-  const userPrompt = `\u5206\u6790\u4EE5\u4E0B\u7EF4\u6743\u7EA0\u7EB7\uFF0C\u8F93\u51FAJSON\uFF1A
-
-**\u7EA0\u7EB7\u4FE1\u606F\uFF1A**
-- \u7C7B\u578B\uFF1A${input.sceneLabel || input.scene || "\u672A\u6307\u5B9A"}
-- \u4E89\u8BAE\u91D1\u989D\uFF1A${input.amount || "\u672A\u77E5"}
-- \u4E89\u8BAE\u7126\u70B9\uFF1A${(input.focus || []).join("\u3001") || "\u672A\u586B\u5199"}
-- \u5F53\u524D\u9636\u6BB5\uFF1A${input.status || "\u672A\u77E5"}
-- \u8865\u5145\u63CF\u8FF0\uFF1A${input.memo || "\u65E0"}
-- \u5DF2\u6709\u8BC1\u636E\uFF1A${(input.evidence || []).map((e) => typeof e === "string" ? e : e.label || e.id || "").join("\u3001") || "\u65E0"}
-
-\u8FD4\u56DE\u4E25\u683CJSON\uFF1A
-{
-  "disputeCore": "\u4E89\u8BAE\u672C\u8D28\uFF0820\u5B57\u5185\uFF09",
-  "keyIssues": ["\u95EE\u98981","\u95EE\u98982","\u95EE\u98983"],
-  "analysis": "\u6DF1\u5EA6\u5206\u6790\uFF08150-200\u5B57\uFF09",
-  "riskAssessment": {"level": "\u9AD8/\u4E2D/\u4F4E", "points": ["\u98CE\u9669\u70B9"]},
-  "strengths": ["\u6709\u5229\u56E0\u7D20"],
-  "weaknesses": ["\u4E0D\u5229\u56E0\u7D20"],
-  "strategy": "\u6700\u4F18\u7B56\u7565\uFF08100\u5B57\uFF09",
-  "nextSteps": ["\u884C\u52A81","\u884C\u52A82","\u6B65\u9AA43"],
-  "tips": "\u4E00\u53E5\u8BDD\u63D0\u9192"
-}`;
-  const result = await callLLM(systemPrompt, userPrompt);
-  if (!result) return null;
-  try {
-    return JSON.parse(result);
-  } catch (e) {
-    console.error("[LLM] JSON\u89E3\u6790\u5931\u8D25:", e.message, result.slice(0, 200));
-    return null;
-  }
-}
 
 // src/modules/report/report.service.js
 var EVIDENCE_ITEMS_MAP2 = Object.fromEntries(EVIDENCE_ITEMS.map((e) => [e.id, e]));
@@ -4162,58 +4056,6 @@ function buildModule8() {
 async function generateReport({ scene, subType, amount, focus = [], status, evidence = [], memberLevel = 0, memo = "" }) {
   const focusKeys = Array.isArray(focus) ? focus : [focus];
   const reportId = generateReportId();
-  let aiInsights = null;
-  if (isLLMAvailable() && memo) {
-    try {
-      const sceneMap = {
-        education: "\u6559\u80B2\u57F9\u8BAD",
-        medical: "\u533B\u7597\u7F8E\u5BB9",
-        labor: "\u52B3\u52A8\u5173\u7CFB",
-        housing: "\u79DF\u623F\u7EA0\u7EB7",
-        consumer: "\u6D88\u8D39\u7EA0\u7EB7",
-        beauty: "\u7F8E\u4E1A\u670D\u52A1",
-        franchise: "\u52A0\u76DF\u7EA0\u7EB7",
-        debt: "\u6C11\u95F4\u501F\u8D37",
-        telecom: "\u7535\u4FE1\u8BC8\u9A97",
-        investment: "\u6295\u8D44\u7406\u8D22",
-        jade: "\u7389\u77F3\u6587\u73A9",
-        marriage: "\u5A5A\u604B\u7EA0\u7EB7",
-        esoteric: "\u7384\u5B66\u547D\u7406",
-        online: "\u7F51\u8D2D\u7EA0\u7EB7",
-        service: "\u670D\u52A1\u5408\u540C",
-        other: "\u5176\u4ED6\u7EA0\u7EB7",
-        "01": "\u7F51\u8D2D\u7EA0\u7EB7",
-        "02": "\u7EBF\u4E0B\u6D88\u8D39",
-        "03": "\u52B3\u52A8\u5173\u7CFB",
-        "04": "\u79DF\u623F\u7EA0\u7EB7",
-        "05": "\u6559\u80B2\u57F9\u8BAD",
-        "06": "\u533B\u7597\u7F8E\u5BB9",
-        "07": "\u4E8C\u624B\u8F66",
-        "08": "\u65C5\u6E38\u7EA0\u7EB7",
-        "09": "\u5408\u540C\u7EA0\u7EB7",
-        "10": "\u623F\u4EA7\u7EA0\u7EB7",
-        "11": "\u6295\u8D44\u7406\u8D22",
-        "12": "\u6C11\u95F4\u501F\u8D37",
-        "13": "\u7269\u6D41\u5FEB\u9012",
-        "14": "\u7968\u52A1\u7EA0\u7EB7",
-        "15": "\u60C5\u611F\u7EA0\u7EB7",
-        "16": "\u5176\u4ED6"
-      };
-      const sceneLabel = sceneMap[scene] || sceneMap[subType] || scene || "\u672A\u6307\u5B9A";
-      aiInsights = await generateAIInsights({
-        scene,
-        sceneLabel,
-        subType,
-        amount,
-        focus: focusKeys,
-        status,
-        evidence,
-        memo
-      });
-    } catch (e) {
-      console.error("[Report] AI\u5206\u6790\u5931\u8D25\uFF0C\u964D\u7EA7\u5230\u6A21\u677F:", e.message);
-    }
-  }
   const m1 = buildModule1({ scene, amount, focusKeys, status, evidence, memberLevel });
   const m2 = buildModule2({ scene, evidence, memberLevel });
   const m3 = buildModule6({ scene, status, focusKeys, memo, evidence });
@@ -4227,24 +4069,6 @@ async function generateReport({ scene, subType, amount, focus = [], status, evid
   const m11 = buildModule11({ scene, status, memberLevel });
   const isLocked = memberLevel === 0;
   const lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
-  if (aiInsights) {
-    m1.aiAnalysis = {
-      disputeCore: aiInsights.disputeCore || "",
-      keyIssues: aiInsights.keyIssues || [],
-      analysis: aiInsights.analysis || ""
-    };
-    m5.aiStrategy = {
-      strategy: aiInsights.strategy || "",
-      nextSteps: aiInsights.nextSteps || [],
-      tips: aiInsights.tips || ""
-    };
-    m9.aiRisk = {
-      riskLevel: aiInsights.riskAssessment && aiInsights.riskAssessment.level || "\u4E2D",
-      riskPoints: aiInsights.riskAssessment && aiInsights.riskAssessment.points || [],
-      strengths: aiInsights.strengths || [],
-      weaknesses: aiInsights.weaknesses || []
-    };
-  }
   return {
     reportId,
     reportTime: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN", {
@@ -4257,8 +4081,8 @@ async function generateReport({ scene, subType, amount, focus = [], status, evid
     memberLevel,
     locked: isLocked,
     lockModules,
-    aiGenerated: !!aiInsights,
-    _llmError: aiInsights ? null : getLLMLastError(),
+    aiGenerated: false,
+    _llmError: null,
     m1,
     m2,
     m3,

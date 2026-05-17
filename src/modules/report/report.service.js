@@ -668,33 +668,8 @@ export async function generateReport({ scene, subType, amount, focus = [], statu
   const focusKeys = Array.isArray(focus) ? focus : [focus];
   const reportId = generateReportId();
 
-  // ── AI增强：调用LLM获取智能分析 ──
-  let aiInsights = null;
-  if (isLLMAvailable() && memo) {
-    try {
-      const sceneMap = {
-        education: '教育培训', medical: '医疗美容', labor: '劳动关系', housing: '租房纠纷',
-        consumer: '消费纠纷', beauty: '美业服务', franchise: '加盟纠纷', debt: '民间借贷',
-        telecom: '电信诈骗', investment: '投资理财', jade: '玉石文玩', marriage: '婚恋纠纷',
-        esoteric: '玄学命理', online: '网购纠纷', service: '服务合同', other: '其他纠纷',
-        '01': '网购纠纷', '02': '线下消费', '03': '劳动关系', '04': '租房纠纷',
-        '05': '教育培训', '06': '医疗美容', '07': '二手车', '08': '旅游纠纷',
-        '09': '合同纠纷', '10': '房产纠纷', '11': '投资理财', '12': '民间借贷',
-        '13': '物流快递', '14': '票务纠纷', '15': '情感纠纷', '16': '其他'
-      };
-      const sceneLabel = sceneMap[scene] || sceneMap[subType] || scene || '未指定';
-      aiInsights = await generateAIInsights({
-        scene, sceneLabel, subType, amount,
-        focus: focusKeys, status, evidence, memo
-      });
-    } catch (e) {
-      console.error('[Report] AI分析失败，降级到模板:', e.message);
-    }
-  }
-
+  // 纯本地模板生成——不用AI，100%可控、零延迟、零成本
   // 8个模块（按产品规格顺序）
-  // m1=纠纷概况 m2=证据分析 m3=时间线 m4=法条索引 m5=维权流程
-  // m6=对方抗辩 m7=数据参考 m8=声明 m9=诉求可行性 m10=替代方案 m11=物料清单
   const m1 = buildModule1({ scene, amount, focusKeys, status, evidence, memberLevel });
   const m2 = buildModule2({ scene, evidence, memberLevel });
   const m3 = buildModule6({ scene, status, focusKeys, memo, evidence }); // 时间轴
@@ -703,40 +678,13 @@ export async function generateReport({ scene, subType, amount, focus = [], statu
   const m6 = buildModule7({ scene, focusKeys, evidence, memberLevel });  // 对方抗辩
   const m7 = buildModule5({ scene, memberLevel });                        // 数据参考
   const m8 = buildModule8();                                              // 声明
-
-  // m9=诉求可行性评估（基于已有证据完整度+焦点分析，静态判断）
   const m9 = buildModule9({ scene, evidence, focusKeys, amount });
-  // m10=低成本替代方案（基于场景+处理阶段）
   const m10 = buildModule10({ scene, status, memberLevel });
-  // m11=流程物料清单（基于场景+当前阶段）
   const m11 = buildModule11({ scene, status, memberLevel });
 
-  // 普通用户（memberLevel=0）：全部11个模块锁定，支付后一次性全部解锁
+  // 普通用户：全部11个模块锁定
   const isLocked = memberLevel === 0;
   const lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
-
-  // AI分析注入（覆盖模板中的静态内容）
-  if (aiInsights) {
-    // m1: 注入AI争议分析
-    m1.aiAnalysis = {
-      disputeCore: aiInsights.disputeCore || '',
-      keyIssues: aiInsights.keyIssues || [],
-      analysis: aiInsights.analysis || '',
-    };
-    // m5: 注入AI策略建议
-    m5.aiStrategy = {
-      strategy: aiInsights.strategy || '',
-      nextSteps: aiInsights.nextSteps || [],
-      tips: aiInsights.tips || '',
-    };
-    // m9: 注入AI风险评估
-    m9.aiRisk = {
-      riskLevel: (aiInsights.riskAssessment && aiInsights.riskAssessment.level) || '中',
-      riskPoints: (aiInsights.riskAssessment && aiInsights.riskAssessment.points) || [],
-      strengths: aiInsights.strengths || [],
-      weaknesses: aiInsights.weaknesses || [],
-    };
-  }
 
   return {
     reportId,
@@ -747,8 +695,8 @@ export async function generateReport({ scene, subType, amount, focus = [], statu
     memberLevel,
     locked: isLocked,
     lockModules,
-    aiGenerated: !!aiInsights,
-    _llmError: aiInsights ? null : getLLMLastError(),
+    aiGenerated: false,
+    _llmError: null,
     m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11,
   };
 }
