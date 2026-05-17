@@ -5666,6 +5666,27 @@ app.get("/privacy", async (_req, reply) => {
   const html = fs3.readFileSync(privacyPath, "utf-8");
   return reply.type("text/html").send(html);
 });
+app.post("/api/v1/admin/seed-test", async (_request, reply) => {
+  try {
+    const { createUser: createUser2, purchaseMember: purchaseMember2 } = await Promise.resolve().then(() => (init_store(), store_exports));
+    const accounts = [
+      { phone: "15000000001", level: 0, planId: "free", planName: "\u666E\u901A\u7528\u6237", days: 0, times: 0 },
+      { phone: "15000000002", level: 1, planId: "quarter", planName: "\u5B63VIP", days: 90, times: 10 },
+      { phone: "15000000003", level: 2, planId: "half_year", planName: "\u534A\u5E74SVIP", days: 180, times: 30 },
+      { phone: "15000000004", level: 3, planId: "annual", planName: "\u9ED1\u91D1\u5E74\u5361", days: 365, times: 50 }
+    ];
+    const results = [];
+    for (const a of accounts) {
+      const openid = "test_" + a.phone;
+      await createUser2({ phone: a.phone, nickname: "\u6D4B\u8BD5" + a.planName, openid, registerSource: "seed" });
+      if (a.level > 0) await purchaseMember2(openid, a.level, a.planId, a.planName, a.days, a.times);
+      results.push({ phone: a.phone, level: a.level, plan: a.planName, times: a.times, days: a.days });
+    }
+    return { success: true, accounts: results, loginTip: "\u9A8C\u8BC1\u7801\u7EDF\u4E00 123456" };
+  } catch (e) {
+    return reply.status(500).send({ success: false, error: e.message });
+  }
+});
 await app.register(evidenceRoutes, { prefix: "/api/v1/evidence", bodyLimit: 25 * 1024 * 1024 });
 await app.register(reportRoutes, { prefix: "/api/v1/report" });
 await app.register(userRoutes, { prefix: "/api/v1/user" });

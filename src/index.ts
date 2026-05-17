@@ -122,6 +122,29 @@ app.get('/privacy', async (_req, reply) => {
   return reply.type('text/html').send(html)
 })
 
+// 测试账号种子（一次调用创建4个测试会员）
+app.post('/api/v1/admin/seed-test', async (_request, reply) => {
+  try {
+    const { createUser, purchaseMember } = await import('./db/store.js')
+    const accounts = [
+      { phone: '15000000001', level: 0, planId: 'free',     planName: '普通用户',  days: 0,   times: 0  },
+      { phone: '15000000002', level: 1, planId: 'quarter',  planName: '季VIP',      days: 90,  times: 10 },
+      { phone: '15000000003', level: 2, planId: 'half_year',planName: '半年SVIP',   days: 180, times: 30 },
+      { phone: '15000000004', level: 3, planId: 'annual',   planName: '黑金年卡',   days: 365, times: 50 },
+    ]
+    const results = []
+    for (const a of accounts) {
+      const openid = 'test_' + a.phone
+      await createUser({ phone: a.phone, nickname: '测试' + a.planName, openid, registerSource: 'seed' })
+      if (a.level > 0) await purchaseMember(openid, a.level, a.planId, a.planName, a.days, a.times)
+      results.push({ phone: a.phone, level: a.level, plan: a.planName, times: a.times, days: a.days })
+    }
+    return { success: true, accounts: results, loginTip: '验证码统一 123456' }
+  } catch (e: any) {
+    return reply.status(500).send({ success: false, error: e.message })
+  }
+})
+
 // 路由注册
 await app.register(evidenceRoutes, { prefix: '/api/v1/evidence', bodyLimit: 25 * 1024 * 1024 })
 await app.register(reportRoutes, { prefix: '/api/v1/report' })
