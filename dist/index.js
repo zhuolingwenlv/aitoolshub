@@ -11,7 +11,6 @@ var __export = (target, all) => {
 // src/db/mysql.js
 var mysql_exports = {};
 __export(mysql_exports, {
-  ensureTables: () => ensureTables,
   getPool: () => getPool,
   initPool: () => initPool,
   insert: () => insert,
@@ -81,87 +80,6 @@ async function insert(sql, params = []) {
   const [result] = await p.query(sql, params);
   return result.insertId || result.affectedRows || 0;
 }
-async function ensureTables() {
-  const p = getPool();
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      openid         VARCHAR(64)  PRIMARY KEY,
-      phone          VARCHAR(20)  DEFAULT NULL,
-      unionid        VARCHAR(64)  DEFAULT NULL,
-      nickname       VARCHAR(50)  DEFAULT NULL,
-      register_source VARCHAR(20) NOT NULL DEFAULT 'wechat',
-      is_deleted     TINYINT(1)   DEFAULT 0,
-      created_at     TIMESTAMP    DEFAULT 0,
-      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-  `);
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS drafts (
-      report_id      VARCHAR(36)  PRIMARY KEY,
-      user_id        VARCHAR(64)  NOT NULL,
-      scene          VARCHAR(10)  DEFAULT NULL,
-      focus          JSON         DEFAULT NULL,
-      evidence       JSON         DEFAULT NULL,
-      report_data    JSON         DEFAULT NULL,
-      is_locked      TINYINT(1)   DEFAULT 0,
-      gen_status     TINYINT(1)   DEFAULT 0,
-      report_version VARCHAR(10)  DEFAULT 'blur',
-      order_id       VARCHAR(36)  DEFAULT NULL,
-      is_deleted     TINYINT(1)   DEFAULT 0,
-      created_at     TIMESTAMP    DEFAULT 0,
-      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-  `);
-  try {
-    await p.query(`ALTER TABLE drafts ADD COLUMN gen_status TINYINT(1) DEFAULT 0 AFTER is_locked`);
-  } catch (e) {
-  }
-  try {
-    await p.query(`ALTER TABLE drafts ADD COLUMN report_version VARCHAR(10) DEFAULT 'blur' AFTER gen_status`);
-  } catch (e) {
-  }
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS orders (
-      order_id        VARCHAR(36)  PRIMARY KEY,
-      user_id         VARCHAR(64)  NOT NULL,
-      plan_id         VARCHAR(20)  NOT NULL,
-      plan_name       VARCHAR(50)  NOT NULL,
-      amount          DECIMAL(10,2) NOT NULL,
-      pay_status      VARCHAR(20)  DEFAULT 'pending',
-      wechat_trade_no VARCHAR(64)  DEFAULT NULL,
-      paid_at         TIMESTAMP    DEFAULT 0,
-      wx_callback_raw TEXT         DEFAULT NULL,
-      created_at      TIMESTAMP    DEFAULT 0,
-      updated_at      TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-  `);
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS members (
-      user_id        VARCHAR(64)  PRIMARY KEY,
-      level          VARCHAR(20)  NOT NULL DEFAULT 'free',
-      plan_name      VARCHAR(50)  DEFAULT NULL,
-      total_times    INT          DEFAULT 0,
-      remain_times   INT          DEFAULT 0,
-      expire_time    TIMESTAMP    DEFAULT 0,
-      renew_discount DECIMAL(3,2) DEFAULT NULL,
-      is_deleted     TINYINT(1)   DEFAULT 0,
-      created_at     TIMESTAMP    DEFAULT 0,
-      updated_at     TIMESTAMP    DEFAULT 0 ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-  `);
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id           VARCHAR(36)  PRIMARY KEY,
-      user_id      VARCHAR(64)  NOT NULL,
-      action_type  VARCHAR(30)  NOT NULL,
-      target_id    VARCHAR(36)  DEFAULT NULL,
-      ip_address   VARCHAR(45)  DEFAULT NULL,
-      user_agent   TEXT         DEFAULT NULL,
-      created_at   TIMESTAMP    DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-  `);
-  console.log("[MySQL] \u5168\u90E8\u8868\u521B\u5EFA/\u68C0\u67E5\u5B8C\u6210");
-}
 var pool;
 var init_mysql = __esm({
   "src/db/mysql.js"() {
@@ -178,7 +96,7 @@ __export(store_exports, {
   createUser: () => createUser,
   deductMemberRemainCount: () => deductMemberRemainCount,
   deleteReport: () => deleteReport,
-  ensureTables: () => ensureTables2,
+  ensureTables: () => ensureTables,
   findOrCreateUser: () => findOrCreateUser,
   findUserByOpenid: () => findUserByOpenid,
   findUserByPhone: () => findUserByPhone,
@@ -570,9 +488,9 @@ function parseMallOrder(row) {
     createdAt: row.created_at
   };
 }
-async function ensureTables2() {
-  const statements = [
-    `CREATE TABLE IF NOT EXISTS users (
+async function ensureTables() {
+  const tableDefs = {
+    users: `CREATE TABLE users (
       openid         VARCHAR(64)  PRIMARY KEY,
       phone          VARCHAR(11)  DEFAULT NULL,
       unionid        VARCHAR(64)  DEFAULT NULL,
@@ -584,7 +502,7 @@ async function ensureTables2() {
       INDEX idx_phone (phone),
       INDEX idx_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS drafts (
+    drafts: `CREATE TABLE drafts (
       report_id     VARCHAR(36)  PRIMARY KEY,
       report_no     VARCHAR(20)  DEFAULT '' COMMENT '\u4E1A\u52A1\u7F16\u53F7QX-YYYYMMDD-NNN',
       user_id       VARCHAR(64)  NOT NULL,
@@ -601,10 +519,9 @@ async function ensureTables2() {
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_user_id (user_id),
-      INDEX idx_pay_status (pay_status)
+      INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS orders (
+    orders: `CREATE TABLE orders (
       order_id        VARCHAR(36)  PRIMARY KEY,
       user_id         VARCHAR(64)  NOT NULL,
       plan_id         VARCHAR(30)  NOT NULL,
@@ -620,7 +537,7 @@ async function ensureTables2() {
       INDEX idx_user_id (user_id),
       INDEX idx_pay_status (pay_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS members (
+    members: `CREATE TABLE members (
       user_id        VARCHAR(64)  PRIMARY KEY,
       level          VARCHAR(20)  NOT NULL DEFAULT '0',
       plan_id        VARCHAR(32)  DEFAULT '',
@@ -633,7 +550,7 @@ async function ensureTables2() {
       created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS audit_logs (
+    audit_logs: `CREATE TABLE audit_logs (
       id           VARCHAR(36)  PRIMARY KEY,
       user_id      VARCHAR(64)  NOT NULL,
       action_type  VARCHAR(30)  NOT NULL,
@@ -642,7 +559,7 @@ async function ensureTables2() {
       user_agent   TEXT         DEFAULT NULL,
       created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS goods (
+    goods: `CREATE TABLE goods (
       id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       name         VARCHAR(128) NOT NULL,
       price        INT UNSIGNED NOT NULL COMMENT '\u91D1\u989D\u5206',
@@ -654,7 +571,7 @@ async function ensureTables2() {
       created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS mall_orders (
+    mall_orders: `CREATE TABLE mall_orders (
       order_id        VARCHAR(36)  PRIMARY KEY,
       user_id         VARCHAR(64)  NOT NULL,
       goods_id        INT UNSIGNED NOT NULL,
@@ -669,23 +586,26 @@ async function ensureTables2() {
       INDEX idx_pay_status (pay_status),
       INDEX idx_goods_id (goods_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-    `CREATE TABLE IF NOT EXISTS sequences (
+    sequences: `CREATE TABLE sequences (
       seq_key    VARCHAR(30)  PRIMARY KEY COMMENT 'report_YYYYMMDD',
       seq_value  INT UNSIGNED DEFAULT 0,
       updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
-  ];
-  for (const stmt of statements) {
-    const tableName = stmt.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] || "unknown";
+  };
+  const tableOrder = ["users", "drafts", "orders", "members", "audit_logs", "goods", "mall_orders", "sequences"];
+  for (const tableName of tableOrder) {
+    const createSQL = tableDefs[tableName];
+    if (!createSQL) continue;
     try {
-      await query(stmt, []);
-      console.log(`[MySQL] \u5EFA\u8868\u6210\u529F: ${tableName}`);
+      await query("DROP TABLE IF EXISTS " + tableName, []);
+      await query(createSQL, []);
+      console.log("[MySQL] \u5EFA\u8868\u6210\u529F: " + tableName);
     } catch (e) {
-      console.error(`[MySQL] \u5EFA\u8868\u5931\u8D25 [${tableName}]:`, e.message);
+      console.error("[MySQL] \u5EFA\u8868\u5931\u8D25 [" + tableName + "]:", e.message);
       throw e;
     }
   }
-  console.log("[MySQL] \u516B\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
+  console.log("[MySQL] \u516B\u5F20\u8868\u521B\u5EFA\u5B8C\u6210\uFF08DROP+CREATE\u6A21\u5F0F\uFF09");
   const seedGoods = [
     [1, "\u6D88\u8D39\u8005\u7EA0\u7EB7\u68B3\u7406\u4E0E\u666E\u6CD5\u64CD\u4F5C\u6307\u5357", 16600, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u68B3\u7406\uFF0C280+\u9875\u7535\u5B50\u7248\u6C47\u7F16\u5DE5\u5177\u4E66"],
     [2, "\u5168\u884C\u4E1A\u6C38\u4E45\u5DE5\u5177\u7D20\u6750\u5E93", 26600, "material", "/images/shop-material.png", "", "\u5168\u884C\u4E1A\u6A21\u677F\u5408\u96C6\uFF0C\u53EF\u7F16\u8F91\u53EF\u5BFC\u51FA\uFF0C\u7EC8\u8EAB\u66F4\u65B0\u6743\u76CA"]
@@ -6046,7 +5966,7 @@ app.post("/api/v1/admin/init-db", async (_req, reply) => {
   try {
     const { initPool: initPool2, query: query2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
     await initPool2();
-    const { ensureTables: ensureTables3 } = await Promise.resolve().then(() => (init_store(), store_exports));
+    const { ensureTables: ensureTables2 } = await Promise.resolve().then(() => (init_store(), store_exports));
     const pool2 = (await Promise.resolve().then(() => (init_mysql(), mysql_exports))).getPool();
     const [rows] = await pool2.query("SHOW TABLES");
     const existingTables = rows.map((r) => Object.values(r)[0]);
@@ -6056,7 +5976,7 @@ app.post("/api/v1/admin/init-db", async (_req, reply) => {
       }
       console.log("[Admin] \u5DF2\u5220\u9664\u65E7\u8868:", existingTables);
     }
-    await ensureTables3();
+    await ensureTables2();
     const [rows2] = await pool2.query("SHOW TABLES");
     const tables = rows2.map((r) => Object.values(r)[0]);
     return { ok: true, message: "\u4E94\u5F20\u8868\u91CD\u5EFA\u5B8C\u6210", tables };
@@ -6068,7 +5988,7 @@ app.post("/api/v1/admin/init-db", async (_req, reply) => {
 var start = async () => {
   try {
     await initPool();
-    await ensureTables2();
+    await ensureTables();
     console.log("[MySQL] \u2705 \u521D\u59CB\u5316\u5B8C\u6210");
     await initRedis();
     app.addHook("onRequest", async (request, reply) => {

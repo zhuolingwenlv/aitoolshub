@@ -397,8 +397,9 @@ function parseMallOrder(row: any) {
 // 自动建表（启动时调用）
 // ============================================================
 export async function ensureTables() {
-  const statements = [
-    `CREATE TABLE IF NOT EXISTS users (
+  // 表名到建表SQL的映射（顺序：先建被引用表，再建引用表）
+  const tableDefs: Record<string, string> = {
+    users: `CREATE TABLE users (
       openid         VARCHAR(64)  PRIMARY KEY,
       phone          VARCHAR(11)  DEFAULT NULL,
       unionid        VARCHAR(64)  DEFAULT NULL,
@@ -411,7 +412,7 @@ export async function ensureTables() {
       INDEX idx_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS drafts (
+    drafts: `CREATE TABLE drafts (
       report_id     VARCHAR(36)  PRIMARY KEY,
       report_no     VARCHAR(20)  DEFAULT '' COMMENT '业务编号QX-YYYYMMDD-NNN',
       user_id       VARCHAR(64)  NOT NULL,
@@ -431,7 +432,7 @@ export async function ensureTables() {
       INDEX idx_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS orders (
+    orders: `CREATE TABLE orders (
       order_id        VARCHAR(36)  PRIMARY KEY,
       user_id         VARCHAR(64)  NOT NULL,
       plan_id         VARCHAR(30)  NOT NULL,
@@ -448,7 +449,7 @@ export async function ensureTables() {
       INDEX idx_pay_status (pay_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS members (
+    members: `CREATE TABLE members (
       user_id        VARCHAR(64)  PRIMARY KEY,
       level          VARCHAR(20)  NOT NULL DEFAULT '0',
       plan_id        VARCHAR(32)  DEFAULT '',
@@ -462,7 +463,7 @@ export async function ensureTables() {
       updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS audit_logs (
+    audit_logs: `CREATE TABLE audit_logs (
       id           VARCHAR(36)  PRIMARY KEY,
       user_id      VARCHAR(64)  NOT NULL,
       action_type  VARCHAR(30)  NOT NULL,
@@ -472,7 +473,7 @@ export async function ensureTables() {
       created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS goods (
+    goods: `CREATE TABLE goods (
       id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       name         VARCHAR(128) NOT NULL,
       price        INT UNSIGNED NOT NULL COMMENT '金额分',
@@ -485,7 +486,7 @@ export async function ensureTables() {
       updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS mall_orders (
+    mall_orders: `CREATE TABLE mall_orders (
       order_id        VARCHAR(36)  PRIMARY KEY,
       user_id         VARCHAR(64)  NOT NULL,
       goods_id        INT UNSIGNED NOT NULL,
@@ -501,24 +502,31 @@ export async function ensureTables() {
       INDEX idx_goods_id (goods_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
-    `CREATE TABLE IF NOT EXISTS sequences (
+    sequences: `CREATE TABLE sequences (
       seq_key    VARCHAR(30)  PRIMARY KEY COMMENT 'report_YYYYMMDD',
       seq_value  INT UNSIGNED DEFAULT 0,
       updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
-  ]
+  }
 
-  for (const stmt of statements) {
-    const tableName = stmt.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] || 'unknown'
+  const tableOrder = ['users', 'drafts', 'orders', 'members', 'audit_logs', 'goods', 'mall_orders', 'sequences']
+
+  for (const tableName of tableOrder) {
+    const createSQL = tableDefs[tableName]
+    if (!createSQL) continue
+
     try {
-      await query(stmt, [])
-      console.log(`[MySQL] 建表成功: ${tableName}`)
+      // 先删旧表（保证每次部署都是干净schema）
+      await query('DROP TABLE IF EXISTS ' + tableName, [])
+      // 再建新表
+      await query(createSQL, [])
+      console.log('[MySQL] 建表成功: ' + tableName)
     } catch (e: any) {
-      console.error(`[MySQL] 建表失败 [${tableName}]:`, e.message)
-      throw e // 失败就抛出来，不要静默
+      console.error('[MySQL] 建表失败 [' + tableName + ']:', e.message)
+      throw e
     }
   }
-  console.log('[MySQL] 八张表检查完成')
+  console.log('[MySQL] 八张表创建完成（DROP+CREATE模式）')
 
   // 种子商品数据（¥166电子书 + ¥266素材库）
   const seedGoods = [
