@@ -1040,8 +1040,8 @@ var init_pay_service = __esm({
   "src/modules/pay/pay.service.ts"() {
     init_store();
     init_redis();
-    MCH_ID = process.env.WEIXIN_MCH_ID || "1745479207";
-    API_KEY = process.env.WEINXIN_PAY_API_KEY || "";
+    MCH_ID = process.env.WEIXIN_MCH_ID || "";
+    API_KEY = process.env.WEIXIN_PAY_API_KEY || "";
     APP_ID = "wxfd20b5775b2f6046";
   }
 });
@@ -4875,30 +4875,30 @@ async function reportRoutes(fastify) {
       return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25", reportId });
     }
   });
-  fastify.get("/list", async (request, reply) => {
-    var userId = "";
+  fastify.get("/list", {
+    preHandler: [fastify.authenticate]
+  }, async function(request, reply) {
     try {
-      var token = (request.headers.authorization || "").replace("Bearer ", "");
-      if (token) {
-        var decoded = fastify.jwt.verify(token);
-        userId = decoded.phone || decoded.id || "";
-      }
-    } catch (_) {
-    }
-    try {
-      var reports = await listReportsByUser(userId || "anonymous", 50);
+      var userId = request.user && request.user.phone || request.user && request.user.id || "";
+      var reports = await listReportsByUser(userId);
       return {
         success: true,
         reports: reports.map(function(r) {
           return {
             reportId: r.reportId,
-            reportNo: r.reportNo || "",
-            typeName: r.scene || "\u7EA0\u7EB7\u68B3\u7406",
             scene: r.scene,
-            date: r.createdAt || "",
-            paid: !r.isLocked,
-            statusLabel: r.isLocked ? "\u6A21\u7CCA\u7248" : "\u9AD8\u6E05\u4ED8\u8D39\u7248",
-            statusClass: r.isLocked ? "locked" : "unlocked"
+            subType: r.subType,
+            amount: r.amount,
+            status: r.status,
+            isLocked: r.isLocked,
+            genStatus: r.genStatus,
+            reportVersion: r.reportVersion,
+            orderId: r.orderId,
+            createdAt: r.createdAt,
+            preview: r.reportData ? {
+              m1: r.reportData.m1 || {},
+              m6: r.reportData.m6 || {}
+            } : {}
           };
         })
       };
@@ -4946,37 +4946,6 @@ async function reportRoutes(fastify) {
       };
     } catch (err) {
       console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err);
-      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
-    }
-  });
-  fastify.get("/list", {
-    preHandler: [fastify.authenticate]
-  }, async (request, reply) => {
-    try {
-      const userId = request.user?.phone || request.user?.id || "";
-      const reports = await listReportsByUser(userId);
-      return {
-        success: true,
-        reports: reports.map((r) => ({
-          reportId: r.reportId,
-          scene: r.scene,
-          subType: r.subType,
-          amount: r.amount,
-          status: r.status,
-          isLocked: r.isLocked,
-          genStatus: r.genStatus,
-          reportVersion: r.reportVersion,
-          orderId: r.orderId,
-          createdAt: r.createdAt,
-          // 轻量预览（不全量返回）
-          preview: r.reportData ? {
-            type: r.reportData.m1?.type || "",
-            evidenceScore: r.reportData.m2?.evidenceScore || 0
-          } : null
-        }))
-      };
-    } catch (err) {
-      console.error("\u62A5\u544A\u5217\u8868\u67E5\u8BE2\u5931\u8D25:", err);
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
     }
   });

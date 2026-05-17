@@ -90,33 +90,31 @@ export async function reportRoutes(fastify) {
     }
   })
 
-  // ── 报告列表（GET /api/v1/report/list）—— 从MySQL读取，不依赖本地存储
-  fastify.get('/list', async (request, reply) => {
-    var userId = ''
+  // ── 报告列表（GET /api/v1/report/list）
+  fastify.get('/list', {
+    preHandler: [fastify.authenticate],
+  }, async function (request, reply) {
     try {
-      var token = (request.headers.authorization || '').replace('Bearer ', '')
-      if (token) {
-        var decoded = fastify.jwt.verify(token)
-        userId = decoded.phone || decoded.id || ''
-      }
-    } catch(_) {}
-
-    try {
-      var reports = await listReportsByUser(userId || 'anonymous', 50)
+      var userId = ((request.user && request.user.phone) || (request.user && request.user.id) || '')
+      var reports = await listReportsByUser(userId)
       return {
         success: true,
-        reports: reports.map(function(r) {
-          return {
-            reportId: r.reportId,
-            reportNo: r.reportNo || '',
-            typeName: r.scene || '纠纷梳理',
-            scene: r.scene,
-            date: r.createdAt || '',
-            paid: !r.isLocked,
-            statusLabel: r.isLocked ? '模糊版' : '高清付费版',
-            statusClass: r.isLocked ? 'locked' : 'unlocked',
-          }
-        }),
+        reports: reports.map(function(r) { return {
+          reportId: r.reportId,
+          scene: r.scene,
+          subType: r.subType,
+          amount: r.amount,
+          status: r.status,
+          isLocked: r.isLocked,
+          genStatus: r.genStatus,
+          reportVersion: r.reportVersion,
+          orderId: r.orderId,
+          createdAt: r.createdAt,
+          preview: r.reportData ? {
+            m1: r.reportData.m1 || {},
+            m6: r.reportData.m6 || {},
+          } : {},
+        }; }),
       }
     } catch(e) {
       console.error('[Report] 列表查询失败:', e)
@@ -124,7 +122,7 @@ export async function reportRoutes(fastify) {
     }
   })
 
-  // 查询报告（GET /api/v1/report/:reportId）—— 双版本鉴权
+  // ── 查询报告（GET /api/v1/report/:reportId）
   fastify.get('/:reportId', async (request, reply) => {
     const { reportId } = request.params || {}
 
@@ -169,39 +167,6 @@ export async function reportRoutes(fastify) {
       }
     } catch (err) {
       console.error('查询报告失败:', err)
-      return reply.status(500).send({ success: false, error: '查询失败' })
-    }
-  })
-
-  // 用户报告列表（GET /api/v1/report/list）
-  fastify.get('/list', {
-    preHandler: [fastify.authenticate],
-  }, async (request, reply) => {
-    try {
-      const userId = request.user?.phone || request.user?.id || ''
-      const reports = await listReportsByUser(userId)
-      return {
-        success: true,
-        reports: reports.map(r => ({
-          reportId: r.reportId,
-          scene: r.scene,
-          subType: r.subType,
-          amount: r.amount,
-          status: r.status,
-          isLocked: r.isLocked,
-          genStatus: r.genStatus,
-          reportVersion: r.reportVersion,
-          orderId: r.orderId,
-          createdAt: r.createdAt,
-          // 轻量预览（不全量返回）
-          preview: r.reportData ? {
-            type: r.reportData.m1?.type || '',
-            evidenceScore: r.reportData.m2?.evidenceScore || 0,
-          } : null,
-        })),
-      }
-    } catch (err) {
-      console.error('报告列表查询失败:', err)
       return reply.status(500).send({ success: false, error: '查询失败' })
     }
   })
