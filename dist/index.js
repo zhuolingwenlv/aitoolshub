@@ -187,7 +187,9 @@ async function saveReport(reportId, data) {
     isLocked = true,
     genStatus = 0,
     reportVersion = "blur",
-    orderId = ""
+    orderId = "",
+    packageType = "single",
+    expireTime = 0
   } = data;
   const focusJson = JSON.stringify(focus);
   const evidenceJson = JSON.stringify(evidence);
@@ -248,6 +250,14 @@ async function saveReport(reportId, data) {
       sets.push("order_id=?");
       vals.push(orderId);
     }
+    if (data.packageType !== void 0) {
+      sets.push("package_type=?");
+      vals.push(packageType);
+    }
+    if (data.expireTime !== void 0) {
+      sets.push("expire_time=?");
+      vals.push(expireTime);
+    }
     if (sets.length > 0) {
       sets.push("updated_at=NOW()");
       vals.push(reportId);
@@ -256,8 +266,8 @@ async function saveReport(reportId, data) {
   } else {
     await insert(
       `INSERT INTO drafts (report_id, report_no, user_id, scene, sub_type, amount, focus, status, evidence,
-       member_level, report_data, is_locked, gen_status, report_version, order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       member_level, report_data, is_locked, gen_status, report_version, order_id, package_type, expire_time)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         reportId,
         reportNo,
@@ -273,7 +283,9 @@ async function saveReport(reportId, data) {
         isLocked ? 1 : 0,
         genStatus,
         reportVersion,
-        orderId
+        orderId,
+        packageType,
+        expireTime
       ]
     );
   }
@@ -292,8 +304,8 @@ async function deleteReport(reportId) {
 }
 async function listReportsByUser(userId, limit = 20) {
   const rows = await query(
-    "SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 ORDER BY created_at DESC LIMIT ?",
-    [userId, limit]
+    "SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 AND package_type != ? ORDER BY created_at DESC LIMIT ?",
+    [userId, "single", limit]
   );
   return rows.map(parseDraft);
 }
@@ -537,6 +549,8 @@ async function ensureTables() {
       gen_status    TINYINT      DEFAULT 0  COMMENT '\u751F\u6210\u72B6\u6001: 0\u5F85\u751F\u6210 1\u751F\u6210\u4E2D 2\u5DF2\u5B8C\u6210 3\u5931\u8D25',
       report_version INT         DEFAULT 1  COMMENT '\u62A5\u544A\u7248\u672C\u53F7',
       order_id      VARCHAR(36)  DEFAULT '',
+      package_type  VARCHAR(20)  DEFAULT 'single' COMMENT 'single/season/svip/black',
+      expire_time   TIMESTAMP    DEFAULT 0  COMMENT '\u5355\u6B21\u62A5\u544A\u8FC7\u671F\u65F6\u95F4(7\u5929)\uFF0C\u4F1A\u5458=0\u6C38\u4E0D\u8FC7\u671F',
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

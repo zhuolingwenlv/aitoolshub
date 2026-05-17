@@ -92,6 +92,8 @@ export async function saveReport(reportId: string, data: any) {
     genStatus = 0,
     reportVersion = 'blur',
     orderId = '',
+    packageType = 'single',
+    expireTime = 0,
   } = data
 
   const focusJson = JSON.stringify(focus)
@@ -116,6 +118,8 @@ export async function saveReport(reportId: string, data: any) {
     if (data.genStatus !== undefined) { sets.push('gen_status=?'); vals.push(genStatus) }
     if (data.reportVersion !== undefined) { sets.push('report_version=?'); vals.push(reportVersion) }
     if (data.orderId !== undefined) { sets.push('order_id=?'); vals.push(orderId) }
+    if (data.packageType !== undefined) { sets.push('package_type=?'); vals.push(packageType) }
+    if (data.expireTime !== undefined) { sets.push('expire_time=?'); vals.push(expireTime) }
     if (sets.length > 0) {
       sets.push('updated_at=NOW()')
       vals.push(reportId)
@@ -124,10 +128,10 @@ export async function saveReport(reportId: string, data: any) {
   } else {
     await insert(
       `INSERT INTO drafts (report_id, report_no, user_id, scene, sub_type, amount, focus, status, evidence,
-       member_level, report_data, is_locked, gen_status, report_version, order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       member_level, report_data, is_locked, gen_status, report_version, order_id, package_type, expire_time)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [reportId, reportNo, userId, scene, subType, amount, focusJson, status, evidenceJson,
-       memberLevel, reportDataJson, isLocked ? 1 : 0, genStatus, reportVersion, orderId]
+       memberLevel, reportDataJson, isLocked ? 1 : 0, genStatus, reportVersion, orderId, packageType, expireTime]
     )
   }
 }
@@ -148,8 +152,8 @@ export async function deleteReport(reportId: string): Promise<boolean> {
 
 export async function listReportsByUser(userId: string, limit = 20) {
   const rows: any[] = await query(
-    'SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 ORDER BY created_at DESC LIMIT ?',
-    [userId, limit]
+    'SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 AND package_type != ? ORDER BY created_at DESC LIMIT ?',
+    [userId, 'single', limit]
   )
   return rows.map(parseDraft)
 }
@@ -435,6 +439,8 @@ export async function ensureTables() {
       gen_status    TINYINT      DEFAULT 0  COMMENT '生成状态: 0待生成 1生成中 2已完成 3失败',
       report_version INT         DEFAULT 1  COMMENT '报告版本号',
       order_id      VARCHAR(36)  DEFAULT '',
+      package_type  VARCHAR(20)  DEFAULT 'single' COMMENT 'single/season/svip/black',
+      expire_time   TIMESTAMP    DEFAULT 0  COMMENT '单次报告过期时间(7天)，会员=0永不过期',
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
