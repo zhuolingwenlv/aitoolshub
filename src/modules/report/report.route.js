@@ -83,12 +83,28 @@ export async function reportRoutes(fastify) {
 
       return { success: true, reportId, report: filterByVersion(report, memberLevel === 0) }
     } catch (err) {
-      // 标记【生成失败】(genStatus=3)
+      // 标记【生成失败】(genStatus=3)，但仍返回200+reportId（旧版前端只认200）
       try { await saveReport(reportId, { genStatus: 3 }) } catch(_) {}
       console.error('❌ 报告生成失败:', err)
-      var errMsg = err && err.message ? err.message : String(err)
-      var errStack = err && err.stack ? err.stack.split('\\n').slice(0,3).join(' | ') : ''
-      return reply.status(500).send({ success: false, error: '报告生成失败', reportId: reportId, detail: errMsg, stack: errStack })
+      // 生成模板数据兜底
+      const fallbackReport = {
+        reportId: reportNo,
+        reportNo: reportNo,
+        scene: scene,
+        reportTime: new Date().toLocaleDateString('zh-CN'),
+        memberLevel: memberLevel,
+        locked: memberLevel === 0,
+        lockModules: [1,2,3,4,5,6,7,8,9,10,11],
+        aiGenerated: false,
+        _llmError: (err && err.message) ? err.message.slice(0, 200) : '生成超时',
+        m1: { type: scene, amount: amount||'待确认', status: status, focus: Array.isArray(focus)?focus:[] },
+        m2: { have: [], suggest: [] },
+        m3: { nodes: [{ time: '--', event: memo||'待补充', source: '用户描述' }] },
+        m4: [],
+        m5: { nodes: [{ id:'negotiation', name:'协商', stage:1, icon:'🤝' }] },
+        m6: { declares: [] }
+      }
+      return { success: true, reportId: reportId, report: fallbackReport, fallback: true }
     }
   })
 
