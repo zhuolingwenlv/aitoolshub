@@ -20,5 +20,5 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 EXPOSE 3000
 
-# 直接运行预构建的 index.js
-CMD ["node", "index.js"]
+# 直接运行预构建的 dist/index.js
+CMD ["node", "dist/index.js"]
