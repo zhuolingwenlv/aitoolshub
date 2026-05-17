@@ -671,8 +671,8 @@ async function ensureTables2() {
   }
   console.log("[MySQL] \u4E03\u5F20\u8868\u68C0\u67E5\u5B8C\u6210");
   const seedGoods = [
-    [1, "\u7EA0\u7EB7\u7EF4\u6743\u5B9E\u6218\u7535\u5B50\u4E66", 19800, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u6DF1\u5EA6\u89E3\u6790\uFF0C200+\u771F\u5B9E\u6848\u4F8B\u62C6\u89E3"],
-    [2, "\u7EF4\u6743\u7D20\u6750\u6A21\u677F\u5E93", 29900, "material", "/images/shop-material.png", "", "\u8D77\u8BC9\u72B6/\u5F8B\u5E08\u51FD/\u8BC1\u636E\u6E05\u5355\u7B498\u5927\u7C7B\u6CD5\u5F8B\u6587\u4E66\u6A21\u677F"]
+    [1, "\u6D88\u8D39\u8005\u7EA0\u7EB7\u68B3\u7406\u4E0E\u666E\u6CD5\u64CD\u4F5C\u6307\u5357", 19800, "ebook", "/images/shop-ebook.png", "", "14\u7C7B\u7EA0\u7EB7\u573A\u666F\u68B3\u7406\uFF0C280+\u9875\u7535\u5B50\u7248\u6C47\u7F16\u5DE5\u5177\u4E66"],
+    [2, "\u5168\u884C\u4E1A\u6C38\u4E45\u5DE5\u5177\u7D20\u6750\u5E93", 29900, "material", "/images/shop-material.png", "", "\u5168\u884C\u4E1A\u6A21\u677F\u5408\u96C6\uFF0C\u53EF\u7F16\u8F91\u53EF\u5BFC\u51FA\uFF0C\u7EC8\u8EAB\u66F4\u65B0\u6743\u76CA"]
   ];
   for (const [id, name, price, type, cover, url, desc] of seedGoods) {
     try {
@@ -832,7 +832,7 @@ async function unifiedOrder(params) {
     openid,
     time_start: timeStart,
     time_expire: timeExpire,
-    attach: JSON.stringify({ planId, memberLevel, userId })
+    attach: JSON.stringify({ planId, memberLevel, userId, goodsId: params.goodsId })
   };
   postData.sign = signParams(postData);
   const xmlBody = xmlEncode(postData);
@@ -5820,7 +5820,9 @@ async function mallRoutes(fastify) {
         planId: "mall_" + goods.id,
         memberLevel: 0,
         totalFee: goods.price,
-        userId
+        userId,
+        goodsId: goods.id
+        // 传给微信支付attach，回调时识别商城订单
       });
       if (!payResult.success) {
         return reply.status(500).send({ success: false, error: payResult.error });

@@ -34,6 +34,7 @@ export async function unifiedOrder(params: {
   memberLevel: number
   totalFee: number // 单位：分
   userId: string
+  goodsId?: number  // 商城商品ID（商城订单用）
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   const { openid, planId, memberLevel, totalFee, userId } = params
   const orderId = 'O' + Date.now() + uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()
@@ -81,7 +82,7 @@ export async function unifiedOrder(params: {
     openid: openid,
     time_start: timeStart,
     time_expire: timeExpire,
-    attach: JSON.stringify({ planId, memberLevel, userId }),
+    attach: JSON.stringify({ planId, memberLevel, userId, goodsId: params.goodsId }),
   }
 
   // 生成签名

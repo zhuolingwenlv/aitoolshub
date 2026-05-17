@@ -78,6 +78,7 @@ export async function mallRoutes(fastify) {
         memberLevel: 0,
         totalFee: goods.price,
         userId,
+        goodsId: goods.id,  // 传给微信支付attach，回调时识别商城订单
       })
 
       if (!payResult.success) {
