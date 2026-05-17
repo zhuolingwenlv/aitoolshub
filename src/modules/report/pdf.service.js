@@ -153,7 +153,7 @@ function buildPdfContent(doc, report, options = {}) {
   y += 15;
 
   // ---- 模块一：纠纷事实梳理 ----
-  const m1 = report.module1 || {};
+  const m1 = report.m1 || {};
   doc.save();
   doc.fillColor(ORANGE);
   doc.fontSize(12);
@@ -210,7 +210,7 @@ function buildPdfContent(doc, report, options = {}) {
   doc.restore();
 
   // ---- 模块二：证据材料清单 ----
-  const m2 = report.module2 || {};
+  const m2 = report.m2 || {};
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -293,7 +293,7 @@ function buildPdfContent(doc, report, options = {}) {
 
   // ---- 模块三：纠纷时间线 ----
   // 真实结构: module3 = { nodes: [{time, event, source, level}], note }
-  const m3 = report.module3 || {};
+  const m3 = report.m3 || {};
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -338,7 +338,7 @@ function buildPdfContent(doc, report, options = {}) {
 
   // ---- 模块四：法律法规索引 ----
   // 真实结构: module4 = array of {name, content}
-  const m4 = Array.isArray(report.module4) ? report.module4 : [];
+  const m4 = Array.isArray(report.m4) ? report.m4 : [];
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -369,7 +369,7 @@ function buildPdfContent(doc, report, options = {}) {
 
   // ---- 模块五：维权流程参考 ----
   // 真实结构: module5 = { nodes: [...], currentStageGuide: {...} }
-  const m5 = report.module5 || {};
+  const m5 = report.m5 || {};
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -433,7 +433,7 @@ function buildPdfContent(doc, report, options = {}) {
 
   // ---- 模块六：抗辩与有利/不利特征 ----
   // 真实结构: module6 = { declares: [], features: { favorable: [], unfavorable: [] } }
-  const m6 = report.module6 || {};
+  const m6 = report.m6 || {};
   const favorable = m6.features && m6.features.favorable ? m6.features.favorable : [];
   const unfavorable = m6.features && m6.features.unfavorable ? m6.features.unfavorable : [];
 
@@ -476,7 +476,7 @@ function buildPdfContent(doc, report, options = {}) {
 
   // ---- 模块七：统计数据参考 ----
   // 真实结构: module7 = { items: [{label, value}] }
-  const m7 = report.module7 || {};
+  const m7 = report.m7 || {};
   const items7 = Array.isArray(m7.items) ? m7.items : [];
 
   y += 10;
@@ -504,7 +504,7 @@ function buildPdfContent(doc, report, options = {}) {
 
   // ---- 模块八：重要声明 ----
   // 真实结构: module8 = { declares: [], platform }
-  const m8 = report.module8 || {};
+  const m8 = report.m8 || {};
   const declares8 = Array.isArray(m8.declares) ? m8.declares : [];
 
   y += 10;
