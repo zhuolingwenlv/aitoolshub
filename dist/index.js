@@ -117,6 +117,7 @@ __export(store_exports, {
   purchaseMember: () => purchaseMember,
   saveReport: () => saveReport,
   setVerifyCode: () => setVerifyCode,
+  unlockReport: () => unlockReport,
   updateMallOrderPaid: () => updateMallOrderPaid,
   updateOrderPaid: () => updateOrderPaid
 });
@@ -299,6 +300,29 @@ async function deleteReport(reportId) {
   const result = await query(
     "UPDATE drafts SET is_deleted = 1, updated_at = NOW() WHERE report_id = ?",
     [reportId]
+  );
+  return result.affectedRows > 0;
+}
+async function unlockReport(reportId, packageType = "single", orderId = "") {
+  const expireTime = packageType === "single" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3) : null;
+  const sets = ["is_locked=0", "updated_at=NOW()"];
+  const vals = [];
+  if (orderId) {
+    sets.push("order_id=?");
+    vals.push(orderId);
+  }
+  if (packageType) {
+    sets.push("package_type=?");
+    vals.push(packageType);
+  }
+  if (expireTime) {
+    sets.push("expire_time=?");
+    vals.push(expireTime);
+  }
+  vals.push(reportId);
+  const result = await query(
+    `UPDATE drafts SET ${sets.join(",")} WHERE report_id = ? AND is_deleted = 0`,
+    vals
   );
   return result.affectedRows > 0;
 }
@@ -2666,6 +2690,27 @@ async function reportRoutes(fastify) {
     } catch (err) {
       console.error("\u521B\u5EFAPDF\u4EFB\u52A1\u5931\u8D25:", err);
       return reply.status(500).send({ success: false, error: "\u521B\u5EFAPDF\u4EFB\u52A1\u5931\u8D25" });
+    }
+  });
+  fastify.post("/:reportId/unlock", async (request, reply) => {
+    const { reportId } = request.params || {};
+    const { packageType, orderId } = request.body || {};
+    try {
+      const draft = await getReport(reportId);
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: "\u62A5\u544A\u4E0D\u5B58\u5728" });
+      }
+      if (!draft.isLocked) {
+        return { success: true, message: "\u62A5\u544A\u5DF2\u89E3\u9501" };
+      }
+      const ok = await unlockReport(reportId, packageType || "single", orderId || "");
+      if (!ok) {
+        return reply.status(500).send({ success: false, error: "\u89E3\u9501\u5931\u8D25" });
+      }
+      return { success: true, message: "\u62A5\u544A\u5DF2\u89E3\u9501" };
+    } catch (err) {
+      console.error("\u89E3\u9501\u62A5\u544A\u5931\u8D25:", err);
+      return reply.status(500).send({ success: false, error: "\u89E3\u9501\u5931\u8D25" });
     }
   });
   fastify.get("/pdf/:taskId", async (request, reply) => {

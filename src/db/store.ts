@@ -150,6 +150,24 @@ export async function deleteReport(reportId: string): Promise<boolean> {
   return result.affectedRows > 0
 }
 
+// 解锁报告（支付后调用，设置is_locked=0）
+export async function unlockReport(reportId: string, packageType = 'single', orderId = ''): Promise<boolean> {
+  const expireTime = packageType === 'single'
+    ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // 单次7天
+    : null  // 会员不过期
+  const sets = ['is_locked=0', 'updated_at=NOW()']
+  const vals: any[] = []
+  if (orderId) { sets.push('order_id=?'); vals.push(orderId) }
+  if (packageType) { sets.push('package_type=?'); vals.push(packageType) }
+  if (expireTime) { sets.push('expire_time=?'); vals.push(expireTime) }
+  vals.push(reportId)
+  const result: any = await query(
+    `UPDATE drafts SET ${sets.join(',')} WHERE report_id = ? AND is_deleted = 0`,
+    vals
+  )
+  return result.affectedRows > 0
+}
+
 export async function listReportsByUser(userId: string, limit = 20) {
   const rows: any[] = await query(
     'SELECT * FROM drafts WHERE user_id = ? AND is_deleted = 0 AND package_type != ? ORDER BY created_at DESC LIMIT ?',

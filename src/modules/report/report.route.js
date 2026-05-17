@@ -2,7 +2,7 @@
 import { generateReport } from './report.service.js'
 import { scanBannedWords } from '../../data/banned-words.js'
 import { generatePdfTask, getPdfTaskStatus } from './pdf.service.js'
-import { saveReport, getReport as getReportDb, deleteReport, listReportsByUser, generateReportNo } from '../../db/store.js'
+import { saveReport, getReport as getReportDb, deleteReport, listReportsByUser, generateReportNo, unlockReport } from '../../db/store.js'
 
 export async function reportRoutes(fastify) {
 
@@ -250,6 +250,30 @@ export async function reportRoutes(fastify) {
     } catch (err) {
       console.error('创建PDF任务失败:', err)
       return reply.status(500).send({ success: false, error: '创建PDF任务失败' })
+    }
+  })
+
+  // 解锁报告（POST /api/v1/report/:reportId/unlock）— 支付成功后调用
+  fastify.post('/:reportId/unlock', async (request, reply) => {
+    const { reportId } = request.params || {}
+    const { packageType, orderId } = request.body || {}
+
+    try {
+      const draft = await getReportDb(reportId)
+      if (!draft) {
+        return reply.status(404).send({ success: false, error: '报告不存在' })
+      }
+      if (!draft.isLocked) {
+        return { success: true, message: '报告已解锁' }
+      }
+      const ok = await unlockReport(reportId, packageType || 'single', orderId || '')
+      if (!ok) {
+        return reply.status(500).send({ success: false, error: '解锁失败' })
+      }
+      return { success: true, message: '报告已解锁' }
+    } catch (err) {
+      console.error('解锁报告失败:', err)
+      return reply.status(500).send({ success: false, error: '解锁失败' })
     }
   })
 
