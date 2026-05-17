@@ -5063,6 +5063,7 @@ async function userRoutes(fastify) {
       token,
       user: {
         id: user.id,
+        openid,
         phone: user.phone,
         nickname: user.nickname,
         memberLevel: member.level || 0,
@@ -5239,7 +5240,7 @@ init_store();
 async function memberRoutes(fastify) {
   fastify.post("/prepay", async (request, reply) => {
     const { planId, openid, reportId } = request.body || {};
-    if (!planId || !openid) {
+    if (planId === void 0 || planId === null || !openid) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u53C2\u6570" });
     }
     const planMap = {

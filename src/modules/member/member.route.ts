@@ -11,7 +11,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
   fastify.post('/prepay', async (request: any, reply) => {
     const { planId, openid, reportId } = request.body || {}
 
-    if (!planId || !openid) {
+    if (planId === undefined || planId === null || !openid) {
       return reply.status(400).send({ success: false, error: '缺少参数' })
     }
 

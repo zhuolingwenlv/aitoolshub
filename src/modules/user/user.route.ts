@@ -138,6 +138,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       token,
       user: {
         id: user.id,
+        openid: openid,
         phone: user.phone,
         nickname: user.nickname,
         memberLevel: member.level || 0,
