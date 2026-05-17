@@ -5042,8 +5042,8 @@ async function reportRoutes(fastify) {
         }
       };
     } catch (err) {
-      console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err);
-      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25" });
+      console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err.message, err.stack?.split("\\n").slice(0, 2).join(" | "));
+      return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25", detail: err.message });
     }
   });
   fastify.post("/:reportId/share", async (request, reply) => {
@@ -5110,20 +5110,26 @@ function filterByVersion(report, isBlur) {
 }
 function filterBlur(report) {
   if (!report) return report;
-  const r = JSON.parse(JSON.stringify(report));
-  if (r.m7 && r.m7.claimAmount) r.m7.claimAmount = "***\uFF08\u4ED8\u8D39\u89E3\u9501\uFF09";
-  if (r.m2 && r.m2.evidenceList) {
-    r.m2.evidenceList = r.m2.evidenceList.map(function(e) {
-      return { ...e, amount: e.amount ? "***" : "", detail: e.detail ? "\u3010\u4ED8\u8D39\u89E3\u9501\u67E5\u770B\u8BE6\u60C5\u3011" : "" };
-    });
+  try {
+    const r = JSON.parse(JSON.stringify(report));
+    if (r.m7 && r.m7.claimAmount) r.m7.claimAmount = "***\uFF08\u4ED8\u8D39\u89E3\u9501\uFF09";
+    if (r.m2 && r.m2.evidenceList) {
+      r.m2.evidenceList = r.m2.evidenceList.map(function(e) {
+        return { ...e, amount: e.amount ? "***" : "", detail: e.detail ? "\u3010\u4ED8\u8D39\u89E3\u9501\u67E5\u770B\u8BE6\u60C5\u3011" : "" };
+      });
+    }
+    if (r.m8 && r.m8.timeline) {
+      r.m8.timeline = r.m8.timeline.map(function(t) {
+        return { ...t, date: t.date ? "****-**-**" : "", detail: "\u3010\u4ED8\u8D39\u89E3\u9501\u3011" };
+      });
+    }
+    r._watermark = "\u3010\u6A21\u7CCA\u9884\u89C8\u7248 \xB7 \u4ED8\u8D39\u89E3\u9501\u9AD8\u6E05\u5B8C\u6574\u62A5\u544A\u3011";
+    return r;
+  } catch (e) {
+    console.error("[filterBlur] \u5E8F\u5217\u5316\u5931\u8D25\uFF0C\u8FD4\u56DE\u539F\u59CB\u6570\u636E:", e.message);
+    report._watermark = "\u3010\u6A21\u7CCA\u9884\u89C8\u7248 \xB7 \u4ED8\u8D39\u89E3\u9501\u9AD8\u6E05\u5B8C\u6574\u62A5\u544A\u3011";
+    return report;
   }
-  if (r.m8 && r.m8.timeline) {
-    r.m8.timeline = r.m8.timeline.map(function(t) {
-      return { ...t, date: t.date ? "****-**-**" : "", detail: "\u3010\u4ED8\u8D39\u89E3\u9501\u3011" };
-    });
-  }
-  r._watermark = "\u3010\u6A21\u7CCA\u9884\u89C8\u7248 \xB7 \u4ED8\u8D39\u89E3\u9501\u9AD8\u6E05\u5B8C\u6574\u62A5\u544A\u3011";
-  return r;
 }
 
 // src/modules/user/user.route.ts

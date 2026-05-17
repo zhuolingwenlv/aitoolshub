@@ -168,8 +168,8 @@ export async function reportRoutes(fastify) {
         },
       }
     } catch (err) {
-      console.error('查询报告失败:', err)
-      return reply.status(500).send({ success: false, error: '查询失败' })
+      console.error('查询报告失败:', err.message, err.stack?.split('\\n').slice(0,2).join(' | '))
+      return reply.status(500).send({ success: false, error: '查询失败', detail: err.message })
     }
   })
 
@@ -259,22 +259,24 @@ function filterByVersion(report, isBlur) {
 // 模糊版：隐藏关键金额/时间/姓名，加水印提示
 function filterBlur(report) {
   if (!report) return report
-  const r = JSON.parse(JSON.stringify(report)) // 深拷贝
-
-  // 隐藏金额
-  if (r.m7 && r.m7.claimAmount) r.m7.claimAmount = '***（付费解锁）'
-  if (r.m2 && r.m2.evidenceList) {
-    r.m2.evidenceList = r.m2.evidenceList.map(function(e) {
-      return { ...e, amount: e.amount ? '***' : '', detail: e.detail ? '【付费解锁查看详情】' : '' }
-    })
+  try {
+    const r = JSON.parse(JSON.stringify(report))
+    if (r.m7 && r.m7.claimAmount) r.m7.claimAmount = '***（付费解锁）'
+    if (r.m2 && r.m2.evidenceList) {
+      r.m2.evidenceList = r.m2.evidenceList.map(function(e) {
+        return { ...e, amount: e.amount ? '***' : '', detail: e.detail ? '【付费解锁查看详情】' : '' }
+      })
+    }
+    if (r.m8 && r.m8.timeline) {
+      r.m8.timeline = r.m8.timeline.map(function(t) {
+        return { ...t, date: t.date ? '****-**-**' : '', detail: '【付费解锁】' }
+      })
+    }
+    r._watermark = '【模糊预览版 · 付费解锁高清完整报告】'
+    return r
+  } catch(e) {
+    console.error('[filterBlur] 序列化失败，返回原始数据:', e.message)
+    report._watermark = '【模糊预览版 · 付费解锁高清完整报告】'
+    return report
   }
-  // 隐藏关键时间
-  if (r.m8 && r.m8.timeline) {
-    r.m8.timeline = r.m8.timeline.map(function(t) {
-      return { ...t, date: t.date ? '****-**-**' : '', detail: '【付费解锁】' }
-    })
-  }
-  // 加水印
-  r._watermark = '【模糊预览版 · 付费解锁高清完整报告】'
-  return r
 }
