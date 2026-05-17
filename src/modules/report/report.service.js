@@ -45,6 +45,10 @@ const FOCUS_KEY_MAP = {
     '过度医疗/乱收费': 'overcharge',
     '虚假宣传被骗': 'false-advertising',
     '拒绝提供病历': 'medical-risk',
+    '效果与承诺不符': 'effect-not-match',
+    '收费不透明或乱收费': 'price-opaque',
+    '服务质量低劣': 'service-quality',
+    '虚假宣传或资质造假': 'false-advertising',
   },
   labor: {
     '工资拖欠': 'wage-arrears',
@@ -96,13 +100,6 @@ const FOCUS_KEY_MAP = {
     '区域保护': 'franchise-risk',
     '虚假承诺': 'false-advertising',
     '保证金不退': 'deposit-refund',
-  },
-  // ==================== 医疗美容（新版）====================
-  medical: {
-    '效果与承诺不符': 'effect-not-match',
-    '收费不透明或乱收费': 'price-opaque',
-    '服务质量低劣': 'service-quality',
-    '虚假宣传或资质造假': 'false-advertising',
   },
   // ==================== 民间借贷纠纷 ====================
   civil_loan: {

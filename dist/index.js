@@ -3477,7 +3477,11 @@ var FOCUS_KEY_MAP = {
     "\u624B\u672F\u5931\u8D25/\u5E76\u53D1\u75C7": "medical-risk",
     "\u8FC7\u5EA6\u533B\u7597/\u4E71\u6536\u8D39": "overcharge",
     "\u865A\u5047\u5BA3\u4F20\u88AB\u9A97": "false-advertising",
-    "\u62D2\u7EDD\u63D0\u4F9B\u75C5\u5386": "medical-risk"
+    "\u62D2\u7EDD\u63D0\u4F9B\u75C5\u5386": "medical-risk",
+    "\u6548\u679C\u4E0E\u627F\u8BFA\u4E0D\u7B26": "effect-not-match",
+    "\u6536\u8D39\u4E0D\u900F\u660E\u6216\u4E71\u6536\u8D39": "price-opaque",
+    "\u670D\u52A1\u8D28\u91CF\u4F4E\u52A3": "service-quality",
+    "\u865A\u5047\u5BA3\u4F20\u6216\u8D44\u8D28\u9020\u5047": "false-advertising"
   },
   labor: {
     "\u5DE5\u8D44\u62D6\u6B20": "wage-arrears",
@@ -3529,13 +3533,6 @@ var FOCUS_KEY_MAP = {
     "\u533A\u57DF\u4FDD\u62A4": "franchise-risk",
     "\u865A\u5047\u627F\u8BFA": "false-advertising",
     "\u4FDD\u8BC1\u91D1\u4E0D\u9000": "deposit-refund"
-  },
-  // ==================== 医疗美容（新版）====================
-  medical: {
-    "\u6548\u679C\u4E0E\u627F\u8BFA\u4E0D\u7B26": "effect-not-match",
-    "\u6536\u8D39\u4E0D\u900F\u660E\u6216\u4E71\u6536\u8D39": "price-opaque",
-    "\u670D\u52A1\u8D28\u91CF\u4F4E\u52A3": "service-quality",
-    "\u865A\u5047\u5BA3\u4F20\u6216\u8D44\u8D28\u9020\u5047": "false-advertising"
   },
   // ==================== 民间借贷纠纷 ====================
   civil_loan: {
