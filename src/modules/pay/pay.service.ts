@@ -64,8 +64,13 @@ export async function unifiedOrder(params: {
     return { success: false, error: '下单失败，请稍后重试' }
   }
 
-  const timeStart = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-  const timeExpire = new Date(Date.now() + 30 * 60 * 1000).toISOString().replace(/[-:T]/g, '').slice(0, 14)
+  // 微信支付V2要求格式 yyyyMMddHHmmss（不能有T）
+  const fmtDate = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  }
+  const timeStart = fmtDate(new Date())
+  const timeExpire = fmtDate(new Date(Date.now() + 30 * 60 * 1000))
 
   const nonceStr = uuidv4().replace(/-/g, '')
 

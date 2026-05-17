@@ -425,6 +425,8 @@ export async function ensureTables() {
       member_level  TINYINT      DEFAULT 0,
       report_data   LONGTEXT     DEFAULT NULL,
       is_locked     TINYINT(1)   DEFAULT 1,
+      gen_status    TINYINT      DEFAULT 0  COMMENT '生成状态: 0待生成 1生成中 2已完成 3失败',
+      report_version INT         DEFAULT 1  COMMENT '报告版本号',
       order_id      VARCHAR(36)  DEFAULT '',
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,

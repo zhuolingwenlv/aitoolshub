@@ -515,6 +515,8 @@ async function ensureTables() {
       member_level  TINYINT      DEFAULT 0,
       report_data   LONGTEXT     DEFAULT NULL,
       is_locked     TINYINT(1)   DEFAULT 1,
+      gen_status    TINYINT      DEFAULT 0  COMMENT '\u751F\u6210\u72B6\u6001: 0\u5F85\u751F\u6210 1\u751F\u6210\u4E2D 2\u5DF2\u5B8C\u6210 3\u5931\u8D25',
+      report_version INT         DEFAULT 1  COMMENT '\u62A5\u544A\u7248\u672C\u53F7',
       order_id      VARCHAR(36)  DEFAULT '',
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
@@ -814,8 +816,12 @@ async function unifiedOrder(params) {
     console.error("[Pay] \u521B\u5EFA\u8BA2\u5355\u5931\u8D25:", e.message);
     return { success: false, error: "\u4E0B\u5355\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" };
   }
-  const timeStart = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const timeExpire = new Date(Date.now() + 30 * 60 * 1e3).toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const fmtDate = (d) => {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  };
+  const timeStart = fmtDate(/* @__PURE__ */ new Date());
+  const timeExpire = fmtDate(new Date(Date.now() + 30 * 60 * 1e3));
   const nonceStr = uuidv43().replace(/-/g, "");
   const postData = {
     appid: APP_ID,
