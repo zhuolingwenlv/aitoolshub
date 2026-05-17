@@ -5,7 +5,7 @@
  */
 const SILICONFLOW_BASE = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1'
 const SILICONFLOW_KEY = process.env.SILICONFLOW_API_KEY || ''
-const MODEL = 'deepseek-ai/DeepSeek-V3-0324'
+const MODEL = 'deepseek-ai/DeepSeek-V3'
 const hasKey = !!SILICONFLOW_KEY
 
 // 诊断：最后一次错误

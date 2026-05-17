@@ -3460,7 +3460,7 @@ var EVIDENCE_ITEMS_MAP = Object.fromEntries(EVIDENCE_ITEMS.map((e) => [e.id, e])
 // src/modules/report/llm.service.js
 var SILICONFLOW_BASE = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
 var SILICONFLOW_KEY = process.env.SILICONFLOW_API_KEY || "";
-var MODEL = "deepseek-ai/DeepSeek-V3-0324";
+var MODEL = "deepseek-ai/DeepSeek-V3";
 var hasKey = !!SILICONFLOW_KEY;
 var lastError = null;
 async function callLLM(systemPrompt, userPrompt) {
