@@ -298,6 +298,13 @@ async function listReportsByUser(userId, limit = 20) {
   return rows.map(parseDraft);
 }
 function parseDraft(row) {
+  let reportData = null;
+  try {
+    reportData = row.report_data ? JSON.parse(row.report_data) : null;
+  } catch (e) {
+    console.error("[parseDraft] JSON\u89E3\u6790\u5931\u8D25, report_id=" + row.report_id + ", raw_len=" + (row.report_data ? row.report_data.length : 0) + ", preview=" + (row.report_data ? row.report_data.slice(0, 100) : "null"));
+    reportData = null;
+  }
   return {
     id: row.report_id,
     reportId: row.report_id,
@@ -306,11 +313,23 @@ function parseDraft(row) {
     scene: row.scene,
     subType: row.sub_type,
     amount: row.amount,
-    focus: row.focus ? JSON.parse(row.focus) : [],
+    focus: (() => {
+      try {
+        return row.focus ? JSON.parse(row.focus) : [];
+      } catch (e) {
+        return [];
+      }
+    })(),
     status: row.status,
-    evidence: row.evidence ? JSON.parse(row.evidence) : [],
+    evidence: (() => {
+      try {
+        return row.evidence ? JSON.parse(row.evidence) : [];
+      } catch (e) {
+        return [];
+      }
+    })(),
     memberLevel: row.member_level,
-    reportData: row.report_data ? JSON.parse(row.report_data) : null,
+    reportData,
     isLocked: row.is_locked === 1,
     genStatus: row.gen_status || 0,
     reportVersion: row.report_version || "blur",
