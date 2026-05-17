@@ -2773,6 +2773,39 @@ async function userRoutes(fastify) {
       }
     };
   });
+  fastify.get("/info", {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    const { id, phone } = request.user;
+    const user = await findUserByOpenid(id) || await findUserByPhone(phone || id);
+    if (!user) return reply.status(404).send({ success: false, error: "\u7528\u6237\u4E0D\u5B58\u5728" });
+    const member = await getMemberInfo(user.id) || { level: 0, remainTimes: 0, expireTime: null };
+    const ml = member.level || 0;
+    const names = ["\u666E\u901A\u7528\u6237", "\u5B63VIP", "\u534A\u5E74SVIP", "\u9ED1\u91D1\u5E74\u5361"];
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        nickname: user.nickname || "\u5FAE\u4FE1\u7528\u6237",
+        memberLevel: ml,
+        memberName: names[ml] || "\u666E\u901A\u7528\u6237",
+        memberType: ml === 1 ? "season" : ml === 2 ? "svip" : ml === 3 ? "black" : null,
+        remainCount: member.remainTimes || 0,
+        expireDate: member.expireTime
+      },
+      permissions: {
+        canViewReports: ml >= 1,
+        canViewRights: ml >= 1,
+        canUseEvidenceRating: ml >= 2,
+        canModifyWithin48h: ml >= 2,
+        canViewKnowledgeBase: ml >= 3,
+        canRequestAdvisorReview: ml >= 3,
+        canViewAnnualSummary: ml >= 3,
+        canUseExclusiveService: ml >= 3
+      }
+    };
+  });
   fastify.get("/profile", {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
