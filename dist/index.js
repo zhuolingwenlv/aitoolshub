@@ -5243,12 +5243,12 @@ async function memberRoutes(fastify) {
       return reply.status(400).send({ success: false, error: "\u7F3A\u5C11\u53C2\u6570" });
     }
     const planMap = {
-      "0": { level: 0, fee: 3680 },
-      "once": { level: 0, fee: 3680 },
-      "single": { level: 0, fee: 3680 },
-      "1": { level: 1, fee: 16800 },
-      "quarter": { level: 1, fee: 16800 },
-      "season": { level: 1, fee: 16800 },
+      "0": { level: 0, fee: 3980 },
+      "once": { level: 0, fee: 3980 },
+      "single": { level: 0, fee: 3980 },
+      "1": { level: 1, fee: 19800 },
+      "quarter": { level: 1, fee: 19800 },
+      "season": { level: 1, fee: 19800 },
       "2": { level: 2, fee: 56600 },
       "halfyear": { level: 2, fee: 56600 },
       "svip": { level: 2, fee: 56600 },
