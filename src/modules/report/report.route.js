@@ -37,7 +37,8 @@ export async function reportRoutes(fastify) {
       const isBlur = draft.isLocked && userLevel === 0
       const reportData = draft.reportData || {}
       const filtered = isBlur ? filterBlur(reportData) : reportData
-      return { success: true, report: { reportId: draft.reportId, reportNo: draft.reportNo||'', scene: draft.scene, ...filtered, locked: draft.isLocked, isLocked: draft.isLocked, genStatus: draft.genStatus, reportVersion: isBlur?'blur':'hd' } }
+      // 核心：draft层字段放最后，确保不被reportData里的同名字段覆盖
+      return { success: true, report: { ...filtered, reportId: draft.reportId, reportNo: draft.reportNo||'', scene: draft.scene, locked: draft.isLocked, isLocked: draft.isLocked, genStatus: draft.genStatus, reportVersion: isBlur?'blur':'hd' } }
     } catch (err) {
       console.error('查询报告失败:', err.message, err.stack?.split('\\\\n').slice(0,2).join(' | '))
       return reply.status(500).send({ success: false, error: '查询失败', detail: err.message })
@@ -126,7 +127,6 @@ export async function reportRoutes(fastify) {
       console.error('❌ 报告生成失败:', err)
       // 生成模板数据兜底
       const fallbackReport = {
-        reportId: reportNo,
         reportNo: reportNo,
         scene: scene,
         reportTime: new Date().toLocaleDateString('zh-CN'),

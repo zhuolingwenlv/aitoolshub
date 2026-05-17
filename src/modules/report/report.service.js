@@ -682,7 +682,7 @@ export async function generateReport({ scene, subType, amount, focus = [], statu
   var lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
 
   return {
-    reportId,
+    // 注意：reportId由route层统一管理（R-格式），模板内不输出QX编号
     reportTime: new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
     memberLevel,
     locked: isLocked,

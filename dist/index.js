@@ -1890,7 +1890,7 @@ async function generateReport({ scene, subType, amount, focus = [], status, evid
   var isLocked = memberLevel === 0;
   var lockModules = isLocked ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [];
   return {
-    reportId,
+    // 注意：reportId由route层统一管理（R-格式），模板内不输出QX编号
     reportTime: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
     memberLevel,
     locked: isLocked,
@@ -2484,7 +2484,7 @@ async function reportRoutes(fastify) {
       const isBlur = draft.isLocked && userLevel === 0;
       const reportData = draft.reportData || {};
       const filtered = isBlur ? filterBlur(reportData) : reportData;
-      return { success: true, report: { reportId: draft.reportId, reportNo: draft.reportNo || "", scene: draft.scene, ...filtered, locked: draft.isLocked, isLocked: draft.isLocked, genStatus: draft.genStatus, reportVersion: isBlur ? "blur" : "hd" } };
+      return { success: true, report: { ...filtered, reportId: draft.reportId, reportNo: draft.reportNo || "", scene: draft.scene, locked: draft.isLocked, isLocked: draft.isLocked, genStatus: draft.genStatus, reportVersion: isBlur ? "blur" : "hd" } };
     } catch (err) {
       console.error("\u67E5\u8BE2\u62A5\u544A\u5931\u8D25:", err.message, err.stack?.split("\\\\n").slice(0, 2).join(" | "));
       return reply.status(500).send({ success: false, error: "\u67E5\u8BE2\u5931\u8D25", detail: err.message });
@@ -2560,7 +2560,6 @@ async function reportRoutes(fastify) {
       }
       console.error("\u274C \u62A5\u544A\u751F\u6210\u5931\u8D25:", err);
       const fallbackReport = {
-        reportId: reportNo,
         reportNo,
         scene,
         reportTime: (/* @__PURE__ */ new Date()).toLocaleDateString("zh-CN"),
