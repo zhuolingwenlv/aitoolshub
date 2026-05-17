@@ -4792,7 +4792,9 @@ async function reportRoutes(fastify) {
       } catch (_) {
       }
       console.error("\u274C \u62A5\u544A\u751F\u6210\u5931\u8D25:", err);
-      return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25", reportId });
+      var errMsg = err && err.message ? err.message : String(err);
+      var errStack = err && err.stack ? err.stack.split("\\n").slice(0, 3).join(" | ") : "";
+      return reply.status(500).send({ success: false, error: "\u62A5\u544A\u751F\u6210\u5931\u8D25", reportId, detail: errMsg, stack: errStack });
     }
   });
   fastify.get("/list", {

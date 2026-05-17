@@ -86,7 +86,9 @@ export async function reportRoutes(fastify) {
       // 标记【生成失败】(genStatus=3)
       try { await saveReport(reportId, { genStatus: 3 }) } catch(_) {}
       console.error('❌ 报告生成失败:', err)
-      return reply.status(500).send({ success: false, error: '报告生成失败', reportId })
+      var errMsg = err && err.message ? err.message : String(err)
+      var errStack = err && err.stack ? err.stack.split('\\n').slice(0,3).join(' | ') : ''
+      return reply.status(500).send({ success: false, error: '报告生成失败', reportId: reportId, detail: errMsg, stack: errStack })
     }
   })
 
