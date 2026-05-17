@@ -71,12 +71,16 @@ function buildPdfContent(doc, report, options = {}) {
   const LIGHT_GRAY = '#F5F5F5';
 
   // ---- 注册中文字体 ----
-  const fontDir = process.env.NODE_ENV === 'production'
-    ? '/app/fonts'
-    : '/mnt/c/WINDOWS/Fonts';
-  doc.registerFont('SimHei', `${fontDir}/simhei.ttf`);
-  doc.registerFont('SimSun', `${fontDir}/simsun.ttc`);
-  doc.font('SimHei'); // 默认字体=中文
+  // 容器环境使用文泉驿正黑（Dockerfile已安装 fonts-wqy-zenhei）
+  const fontPath = process.env.NODE_ENV === 'production'
+    ? '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
+    : '/mnt/c/WINDOWS/Fonts/simhei.ttf';
+  try {
+    doc.registerFont('WQY', fontPath);
+    doc.font('WQY');
+  } catch (e) {
+    console.warn('[PDF] 中文字体加载失败，使用默认字体:', e.message);
+  }
 
   // ---- 水印 ----
   doc.save();

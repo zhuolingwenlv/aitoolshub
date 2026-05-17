@@ -1977,10 +1977,13 @@ function buildPdfContent(doc, report, options = {}) {
   const DARK = "#333333";
   const ORANGE = "#E85A38";
   const LIGHT_GRAY = "#F5F5F5";
-  const fontDir = process.env.NODE_ENV === "production" ? "/app/fonts" : "/mnt/c/WINDOWS/Fonts";
-  doc.registerFont("SimHei", `${fontDir}/simhei.ttf`);
-  doc.registerFont("SimSun", `${fontDir}/simsun.ttc`);
-  doc.font("SimHei");
+  const fontPath = process.env.NODE_ENV === "production" ? "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc" : "/mnt/c/WINDOWS/Fonts/simhei.ttf";
+  try {
+    doc.registerFont("WQY", fontPath);
+    doc.font("WQY");
+  } catch (e) {
+    console.warn("[PDF] \u4E2D\u6587\u5B57\u4F53\u52A0\u8F7D\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u5B57\u4F53:", e.message);
+  }
   doc.save();
   doc.fillColor("#E8E8E8");
   doc.fontSize(60);
