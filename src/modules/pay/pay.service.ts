@@ -37,6 +37,16 @@ export async function unifiedOrder(params: {
   const { openid, planId, memberLevel, totalFee, userId } = params
   const orderId = 'O' + Date.now() + uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()
 
+  // 防重复：检查近60秒是否有该用户的待支付/已支付同级别订单
+  const { query } = await import('../../db/mysql.js')
+  const recent = await query(
+    'SELECT 1 FROM orders WHERE user_id = ? AND plan_level = ? AND pay_status IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1',
+    [userId, memberLevel, 'pending', 'success']
+  )
+  if (recent.length > 0) {
+    return { success: false, error: '您已有一笔进行中的订单，请稍后再试' }
+  }
+
   // 在调用微信支付前先把订单写入MySQL（P0修复）
   try {
     await createOrder(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee)

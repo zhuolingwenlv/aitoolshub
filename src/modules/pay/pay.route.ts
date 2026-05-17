@@ -15,9 +15,10 @@ export async function payRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, message: 'pay route ok', time: new Date().toISOString() })
   })
 
-  // 微信支付统一下单（JSAPI）
-  // 前端参数: planLevel, planClass, isSingle, scene, reportId, totalFee(分), planId, userId
-  fastify.post('/pay/create', async (request: any, reply: any) => {
+  // 微信支付统一下单（JSAPI）— 强制auth，userId从JWT提取
+  fastify.post('/pay/create', {
+    preHandler: [fastify.authenticate],
+  }, async (request: any, reply: any) => {
     const body = request.body || {}
     console.log('[Pay] create called, body:', JSON.stringify(body))
 
@@ -26,10 +27,15 @@ export async function payRoutes(fastify: FastifyInstance) {
       planId = 'plan_default',
       planLevel = 0,
       totalFee = 3980,
-      userId = '',
       reportId = '',
       planName = '单次诊断',
     } = body
+
+    // userId从JWT提取，不允许客户端传入
+    const userId = request.user?.phone || request.user?.id || ''
+    if (!userId) {
+      return reply.status(401).send({ success: false, error: '请先登录' })
+    }
 
     // 开发阶段无真实 openid 时使用 mock（生产必须替换为真实 openid）
     const payOpenid = openid || `mock_openid_${Date.now()}`

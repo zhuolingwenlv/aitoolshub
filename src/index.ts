@@ -22,7 +22,9 @@ import { ensureTables } from './db/store.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const app = Fastify({
-  logger: true,
+  logger: process.env.NODE_ENV === 'production'
+    ? { level: 'warn' }
+    : true,
 })
 
 // CORS

@@ -547,7 +547,8 @@ async function ensureTables2() {
       is_deleted     TINYINT(1)   DEFAULT 0,
       created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_phone (phone)
+      INDEX idx_phone (phone),
+      INDEX idx_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
     `CREATE TABLE IF NOT EXISTS drafts (
       report_id     VARCHAR(36)  PRIMARY KEY,
@@ -565,7 +566,8 @@ async function ensureTables2() {
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_user_id (user_id)
+      INDEX idx_user_id (user_id),
+      INDEX idx_pay_status (pay_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
     `CREATE TABLE IF NOT EXISTS orders (
       order_id        VARCHAR(36)  PRIMARY KEY,
@@ -580,7 +582,8 @@ async function ensureTables2() {
       wx_callback_raw TEXT         DEFAULT NULL,
       created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_user_id (user_id)
+      INDEX idx_user_id (user_id),
+      INDEX idx_pay_status (pay_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
     `CREATE TABLE IF NOT EXISTS members (
       user_id        VARCHAR(64)  PRIMARY KEY,
@@ -628,6 +631,7 @@ async function ensureTables2() {
       download_url    VARCHAR(255) DEFAULT '',
       created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_user_id (user_id),
+      INDEX idx_pay_status (pay_status),
       INDEX idx_goods_id (goods_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
   ];
@@ -5297,6 +5301,14 @@ function signParams(params) {
 async function unifiedOrder(params) {
   const { openid, planId, memberLevel, totalFee, userId } = params;
   const orderId = "O" + Date.now() + uuidv43().replace(/-/g, "").slice(0, 12).toUpperCase();
+  const { query: query2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
+  const recent = await query2(
+    "SELECT 1 FROM orders WHERE user_id = ? AND plan_level = ? AND pay_status IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1",
+    [userId, memberLevel, "pending", "success"]
+  );
+  if (recent.length > 0) {
+    return { success: false, error: "\u60A8\u5DF2\u6709\u4E00\u7B14\u8FDB\u884C\u4E2D\u7684\u8BA2\u5355\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5" };
+  }
   try {
     await createOrder(orderId, userId, planId, getPlanName(memberLevel), memberLevel, totalFee);
     console.log("[Pay] \u8BA2\u5355\u5DF2\u521B\u5EFA:", orderId);
@@ -5447,7 +5459,9 @@ async function payRoutes(fastify) {
   fastify.get("/pay/test", async (_req, reply) => {
     return reply.send({ success: true, message: "pay route ok", time: (/* @__PURE__ */ new Date()).toISOString() });
   });
-  fastify.post("/pay/create", async (request, reply) => {
+  fastify.post("/pay/create", {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
     const body = request.body || {};
     console.log("[Pay] create called, body:", JSON.stringify(body));
     const {
@@ -5455,10 +5469,13 @@ async function payRoutes(fastify) {
       planId = "plan_default",
       planLevel = 0,
       totalFee = 3980,
-      userId = "",
       reportId = "",
       planName = "\u5355\u6B21\u8BCA\u65AD"
     } = body;
+    const userId = request.user?.phone || request.user?.id || "";
+    if (!userId) {
+      return reply.status(401).send({ success: false, error: "\u8BF7\u5148\u767B\u5F55" });
+    }
     const payOpenid = openid || `mock_openid_${Date.now()}`;
     try {
       const result = await unifiedOrder({
@@ -5593,7 +5610,7 @@ init_mysql();
 init_store();
 var __dirname = path3.dirname(fileURLToPath2(import.meta.url));
 var app = Fastify({
-  logger: true
+  logger: process.env.NODE_ENV === "production" ? { level: "warn" } : true
 });
 await app.register(cors, {
   origin: true,

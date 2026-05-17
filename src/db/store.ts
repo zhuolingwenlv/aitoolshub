@@ -398,7 +398,8 @@ export async function ensureTables() {
       is_deleted     TINYINT(1)   DEFAULT 0,
       created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_phone (phone)
+      INDEX idx_phone (phone),
+      INDEX idx_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
     `CREATE TABLE IF NOT EXISTS drafts (
@@ -417,7 +418,8 @@ export async function ensureTables() {
       is_deleted    TINYINT(1)   DEFAULT 0,
       created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_user_id (user_id)
+      INDEX idx_user_id (user_id),
+      INDEX idx_pay_status (pay_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
     `CREATE TABLE IF NOT EXISTS orders (
@@ -433,7 +435,8 @@ export async function ensureTables() {
       wx_callback_raw TEXT         DEFAULT NULL,
       created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_user_id (user_id)
+      INDEX idx_user_id (user_id),
+      INDEX idx_pay_status (pay_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
 
     `CREATE TABLE IF NOT EXISTS members (
@@ -485,6 +488,7 @@ export async function ensureTables() {
       download_url    VARCHAR(255) DEFAULT '',
       created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_user_id (user_id),
+      INDEX idx_pay_status (pay_status),
       INDEX idx_goods_id (goods_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8`,
   ]
