@@ -452,7 +452,7 @@ function buildModule1({ scene, amount, focusKeys, status, evidence, memberLevel 
 function buildModule2({ scene, evidence, memberLevel }) {
   // 用户上传的证据（原始数据为主，不被后端字典覆盖）
   const have = (evidence || []).map(e => ({
-    name: e.label || e.id || '未知材料',
+    name: (e.label && e.label !== 'undefined' ? e.label : (e.id && e.id !== 'undefined' ? e.id : '未知材料')),
     tip: e.note || (e.keyTerms && e.keyTerms.length > 0 ? e.keyTerms.join('、') : '已上传'),
     level: e.level || '',
     quality: e.quality || '',
