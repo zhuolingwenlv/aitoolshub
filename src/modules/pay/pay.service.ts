@@ -118,7 +118,7 @@ export async function unifiedOrder(params: {
     const result = xmlDecode(xmlText)
 
     if (result.return_code === 'SUCCESS' && result.result_code === 'SUCCESS') {
-      // 构造 JSAPI 调起参数（5字段，不含 total_fee）
+      // 签名用5字段（不含 total_fee），签完再追加上去
       const signParams2: Record<string, string> = {
         appId: APP_ID,
         timeStamp: String(Math.floor(Date.now() / 1000)),
@@ -128,12 +128,17 @@ export async function unifiedOrder(params: {
       }
       signParams2.paySign = signParams(signParams2)
 
+      // total_fee 不参与 paySign，但基础库3.16要求必须传给 wx.requestPayment
+      const jsapiParams: Record<string, string> = {}
+      for (const k in signParams2) { jsapiParams[k] = signParams2[k] }
+      jsapiParams.total_fee = String(totalFee)
+
       return {
         success: true,
         data: {
           orderId,
           prepayId: result.prepay_id,
-          jsapiParams: signParams2,
+          jsapiParams,
         },
       }
     } else {
