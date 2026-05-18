@@ -609,6 +609,20 @@ function _generateInBackground(taskId, report, filePath) {
   });
 }
 
+// ==================== 并发控制 ====================
+const MAX_CONCURRENT = 3;
+let activeGenerations = 0;
+const pendingQueue = [];
+
+function tryNextPdf() {
+  if (pendingQueue.length === 0 || activeGenerations >= MAX_CONCURRENT) return;
+  const next = pendingQueue.shift();
+  activeGenerations++;
+  _generateInBackground(next.taskId, next.report, next.filePath)
+    .catch(err => console.error(`❌ PDF生成失败 [${next.taskId}]:`, err.message))
+    .finally(() => { activeGenerations--; tryNextPdf(); });
+}
+
 // ==================== 公开API ====================
 
 /**
@@ -651,10 +665,17 @@ export function generatePdfTask(report) {
     createdAt: Date.now(),
   });
 
+  // 并发控制：超过上限排队
+  if (activeGenerations >= MAX_CONCURRENT) {
+    pendingQueue.push({ taskId, report, filePath });
+    return { taskId, status: 'queued', filePath: null };
+  }
+
   // 异步生成（不阻塞）
+  activeGenerations++;
   _generateInBackground(taskId, report, filePath).catch(err => {
     console.error(`❌ PDF生成失败 [${taskId}]:`, err.message);
-  });
+  }).finally(() => { activeGenerations--; tryNextPdf(); });
 
   return { taskId, status: 'pending', filePath: null };
 }
