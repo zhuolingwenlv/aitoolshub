@@ -117,23 +117,25 @@ export async function unifiedOrder(params: {
     const result = xmlDecode(xmlText)
 
     if (result.return_code === 'SUCCESS' && result.result_code === 'SUCCESS') {
-      // 构造 JSAPI 调起参数
+      // 构造 JSAPI 调起参数（签名用，不含 total_fee）
       const signParams2: Record<string, string> = {
         appId: APP_ID,
         timeStamp: String(Math.floor(Date.now() / 1000)),
         nonceStr: nonceStr,
         package: 'prepay_id=' + result.prepay_id,
         signType: 'MD5',
-        total_fee: String(totalFee),
       }
       signParams2.paySign = signParams(signParams2)
+
+      // total_fee 签名后追加上去，不参与 paySign 计算
+      const jsapiParams = Object.assign({}, signParams2, { total_fee: String(totalFee) })
 
       return {
         success: true,
         data: {
           orderId,
           prepayId: result.prepay_id,
-          jsapiParams: signParams2,
+          jsapiParams: jsapiParams,
         },
       }
     } else {
