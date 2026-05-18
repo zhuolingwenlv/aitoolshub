@@ -7,8 +7,8 @@ import { acquirePayLock, releasePayLock } from '../../db/redis.js'
 // ============================================================
 // 微信支付配置（从环境变量读取）
 // ============================================================
-const MCH_ID = process.env.WEIXIN_MCH_ID || ''
-const API_KEY = process.env.WEIXIN_PAY_API_KEY || ''
+const MCH_ID = process.env.WEIXIN_MCH_ID || '1745479207'
+const API_KEY = process.env.WEIXIN_API_KEY || ''
 const APP_ID = 'wxfd20b5775b2f6046'
 
 // ============================================================
