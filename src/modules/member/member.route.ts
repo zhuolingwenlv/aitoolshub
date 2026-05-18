@@ -50,7 +50,9 @@ export async function memberRoutes(fastify: FastifyInstance) {
             nonceStr: Math.random().toString(36).slice(2),
             package: 'prepay_id=mock_' + Date.now(),
             signType: 'MD5',
-            paySign: 'MOCK_SIGN'
+            paySign: 'MOCK_SIGN',
+            total_fee: String(finalFee),
+            totalFee: String(finalFee)
           }
         }
       }
@@ -58,6 +60,8 @@ export async function memberRoutes(fastify: FastifyInstance) {
       return {
         success: true,
         orderId: result.data.orderId,
+        total_fee: String(finalFee),
+        totalFee: String(finalFee),
         data: result.data.jsapiParams || result.data,
       }
     } catch (e) {
@@ -73,7 +77,9 @@ export async function memberRoutes(fastify: FastifyInstance) {
           nonceStr: Math.random().toString(36).slice(2),
           package: 'prepay_id=mock_' + Date.now(),
           signType: 'MD5',
-          paySign: 'MOCK_SIGN'
+          paySign: 'MOCK_SIGN',
+          total_fee: String(finalFee),
+          totalFee: String(finalFee)
         }
       }
     }
