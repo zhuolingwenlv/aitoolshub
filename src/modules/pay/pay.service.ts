@@ -124,6 +124,7 @@ export async function unifiedOrder(params: {
         nonceStr: nonceStr,
         package: 'prepay_id=' + result.prepay_id,
         signType: 'MD5',
+        total_fee: String(totalFee),
       }
       signParams2.paySign = signParams(signParams2)
 

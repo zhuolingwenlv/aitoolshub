@@ -928,7 +928,8 @@ async function unifiedOrder(params) {
         timeStamp: String(Math.floor(Date.now() / 1e3)),
         nonceStr,
         package: "prepay_id=" + result.prepay_id,
-        signType: "MD5"
+        signType: "MD5",
+        total_fee: String(totalFee)
       };
       signParams2.paySign = signParams(signParams2);
       return {
@@ -1040,8 +1041,8 @@ var init_pay_service = __esm({
   "src/modules/pay/pay.service.ts"() {
     init_store();
     init_redis();
-    MCH_ID = process.env.WEIXIN_MCH_ID || "";
-    API_KEY = process.env.WEIXIN_PAY_API_KEY || "";
+    MCH_ID = process.env.WEIXIN_MCH_ID || "1745479207";
+    API_KEY = process.env.WEIXIN_API_KEY || "a7B9xW2qR5tY8uI3oP6sD1fG4hJ0kL9m";
     APP_ID = "wxfd20b5775b2f6046";
   }
 });
@@ -1977,12 +1978,13 @@ function buildPdfContent(doc, report, options = {}) {
   const DARK = "#333333";
   const ORANGE = "#E85A38";
   const LIGHT_GRAY = "#F5F5F5";
-  const fontPath = process.env.NODE_ENV === "production" ? "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc" : "/mnt/c/WINDOWS/Fonts/simhei.ttf";
+  const fontPath = "/app/fonts/simhei.ttf";
   try {
-    doc.registerFont("WQY", fontPath);
-    doc.font("WQY");
+    doc.registerFont("SimHei", fontPath);
+    doc.font("SimHei");
   } catch (e) {
-    console.warn("[PDF] \u4E2D\u6587\u5B57\u4F53\u52A0\u8F7D\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u5B57\u4F53:", e.message);
+    console.error("[PDF] \u4E2D\u6587\u5B57\u4F53\u52A0\u8F7D\u5931\u8D25:", e.message);
+    throw new Error("\u4E2D\u6587\u5B57\u4F53\u7F3A\u5931\uFF0C\u65E0\u6CD5\u751F\u6210PDF");
   }
   doc.save();
   doc.fillColor("#E8E8E8");
@@ -2196,14 +2198,14 @@ function buildPdfContent(doc, report, options = {}) {
     doc.text(m3.note, 40, y, { width: contentWidth });
   }
   doc.restore();
-const m4 = Array.isArray(report.m4) ? report.m4 : [];
+  const m4 = Array.isArray(report.m4) ? report.m4 : [];
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
-
   doc.save();
   doc.fillColor(ORANGE).fontSize(12);
-  doc.text('四、法律法规索引', 40, y, { width: contentWidth });
+  doc.text("\u56DB\u3001\u6CD5\u5F8B\u6CD5\u89C4\u7D22\u5F15", 40, y, { width: contentWidth });
+  y += 20;
   if (m4.length > 0) {
     m4.forEach((law, idx) => {
       doc.fillColor(DARK).fontSize(10);
@@ -2426,6 +2428,18 @@ function _generateInBackground(taskId, report, filePath) {
     }, 15e3);
   });
 }
+var MAX_CONCURRENT = 3;
+var activeGenerations = 0;
+var pendingQueue = [];
+function tryNextPdf() {
+  if (pendingQueue.length === 0 || activeGenerations >= MAX_CONCURRENT) return;
+  const next = pendingQueue.shift();
+  activeGenerations++;
+  _generateInBackground(next.taskId, next.report, next.filePath).catch((err) => console.error(`\u274C PDF\u751F\u6210\u5931\u8D25 [${next.taskId}]:`, err.message)).finally(() => {
+    activeGenerations--;
+    tryNextPdf();
+  });
+}
 function generatePdfTask(report) {
   const reportId = report.reportId;
   const cached = getCachedPdf(reportId);
@@ -2453,8 +2467,16 @@ function generatePdfTask(report) {
     filePath,
     createdAt: Date.now()
   });
+  if (activeGenerations >= MAX_CONCURRENT) {
+    pendingQueue.push({ taskId, report, filePath });
+    return { taskId, status: "queued", filePath: null };
+  }
+  activeGenerations++;
   _generateInBackground(taskId, report, filePath).catch((err) => {
     console.error(`\u274C PDF\u751F\u6210\u5931\u8D25 [${taskId}]:`, err.message);
+  }).finally(() => {
+    activeGenerations--;
+    tryNextPdf();
   });
   return { taskId, status: "pending", filePath: null };
 }
@@ -2892,8 +2914,8 @@ async function userRoutes(fastify) {
       try {
         const https = await import("node:https");
         const appid = process.env.WECHAT_APPID || "wxfd20b5775b2f6046";
-        const secret = process.env.WECHAT_SECRET || "";
-        const wxUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+        const secret = process.env.WECHAT_SECRET || "7792ee0eb5f1c579ea7c390e594ee8df";
+        const wxUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=***&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
         const wxData = await new Promise((resolve, reject) => {
           https.get(wxUrl, (res) => {
             let body = "";
@@ -3151,13 +3173,17 @@ async function memberRoutes(fastify) {
             nonceStr: Math.random().toString(36).slice(2),
             package: "prepay_id=mock_" + Date.now(),
             signType: "MD5",
-            paySign: "MOCK_SIGN"
+            paySign: "MOCK_SIGN",
+            total_fee: String(finalFee),
+            totalFee: String(finalFee)
           }
         };
       }
       return {
         success: true,
         orderId: result.data.orderId,
+        total_fee: String(finalFee),
+        totalFee: String(finalFee),
         data: result.data.jsapiParams || result.data
       };
     } catch (e) {
@@ -3172,7 +3198,9 @@ async function memberRoutes(fastify) {
           nonceStr: Math.random().toString(36).slice(2),
           package: "prepay_id=mock_" + Date.now(),
           signType: "MD5",
-          paySign: "MOCK_SIGN"
+          paySign: "MOCK_SIGN",
+          total_fee: String(finalFee),
+          totalFee: String(finalFee)
         }
       };
     }
