@@ -2041,7 +2041,7 @@ function buildPdfContent(doc, report, options = {}) {
   doc.moveTo(40, y).lineTo(doc.page.width - 40, y).stroke();
   doc.restore();
   y += 15;
-  const m1 = report.module1 || {};
+  const m1 = report.m1 || {};
   doc.save();
   doc.fillColor(ORANGE);
   doc.fontSize(12);
@@ -2092,7 +2092,7 @@ function buildPdfContent(doc, report, options = {}) {
     });
   }
   doc.restore();
-  const m2 = report.module2 || {};
+  const m2 = report.m2 || {};
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -2159,7 +2159,7 @@ function buildPdfContent(doc, report, options = {}) {
     doc.restore();
   }
   doc.restore();
-  const m3 = report.module3 || {};
+  const m3 = report.m3 || {};
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -2196,14 +2196,14 @@ function buildPdfContent(doc, report, options = {}) {
     doc.text(m3.note, 40, y, { width: contentWidth });
   }
   doc.restore();
-  const m4 = Array.isArray(report.module4) ? report.module4 : [];
+const m4 = Array.isArray(report.m4) ? report.m4 : [];
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
+
   doc.save();
   doc.fillColor(ORANGE).fontSize(12);
-  doc.text("\u56DB\u3001\u6CD5\u5F8B\u6CD5\u89C4\u7D22\u5F15", 40, y, { width: contentWidth });
-  y += 20;
+  doc.text('四、法律法规索引', 40, y, { width: contentWidth });
   if (m4.length > 0) {
     m4.forEach((law, idx) => {
       doc.fillColor(DARK).fontSize(10);
@@ -2222,7 +2222,7 @@ function buildPdfContent(doc, report, options = {}) {
     y += 16;
   }
   doc.restore();
-  const m5 = report.module5 || {};
+  const m5 = report.m5 || {};
   y += 10;
   _addDivider(doc, y, GRAY);
   y += 15;
@@ -2278,7 +2278,7 @@ function buildPdfContent(doc, report, options = {}) {
     doc.restore();
   }
   doc.restore();
-  const m6 = report.module6 || {};
+  const m6 = report.m6 || {};
   const favorable = m6.features && m6.features.favorable ? m6.features.favorable : [];
   const unfavorable = m6.features && m6.features.unfavorable ? m6.features.unfavorable : [];
   y += 10;
@@ -2313,7 +2313,7 @@ function buildPdfContent(doc, report, options = {}) {
     y += 16;
   }
   doc.restore();
-  const m7 = report.module7 || {};
+  const m7 = report.m7 || {};
   const items7 = Array.isArray(m7.items) ? m7.items : [];
   y += 10;
   _addDivider(doc, y, GRAY);
@@ -2335,7 +2335,7 @@ function buildPdfContent(doc, report, options = {}) {
     y += 16;
   }
   doc.restore();
-  const m8 = report.module8 || {};
+  const m8 = report.m8 || {};
   const declares8 = Array.isArray(m8.declares) ? m8.declares : [];
   y += 10;
   _addDivider(doc, y, GRAY);
