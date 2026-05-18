@@ -142,9 +142,11 @@ export async function unifiedOrder(params: {
         },
       }
     } else {
+      console.error('[Pay] 统一下单失败 微信返回:', JSON.stringify({ return_code: result.return_code, result_code: result.result_code, err_code: result.err_code, err_code_des: result.err_code_des, return_msg: result.return_msg }))
       return { success: false, error: result.err_code_des || result.return_msg || '下单失败' }
     }
   } catch (err: any) {
+    console.error('[Pay] 统一下单异常:', err.message, err.stack)
     return { success: false, error: err.message }
   }
 }
