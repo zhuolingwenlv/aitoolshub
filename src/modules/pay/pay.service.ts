@@ -5,8 +5,9 @@ import { updateOrderPaid, createOrder, purchaseMember as storePurchaseMember } f
 import { acquirePayLock, releasePayLock } from '../../db/redis.js'
 
 // ============================================================
-// 微信支付配置（从环境变量读取）
+// 微信虚拟支付配置（从环境变量读取）
 // ============================================================
+const VIRTUAL_OFFER_ID = process.env.VIRTUAL_OFFER_ID || 'wxfd20b5775b2f6046'
 const MCH_ID = process.env.WEIXIN_MCH_ID || '1745479207'
 const API_KEY = process.env.WEIXIN_API_KEY || 'a7B9xW2qR5tY8uI3oP6sD1fG4hJ0kL9m'
 const APP_ID = 'wxfd20b5775b2f6046'
@@ -133,12 +134,26 @@ export async function unifiedOrder(params: {
       for (const k in signParams2) { jsapiParams[k] = signParams2[k] }
       jsapiParams.total_fee = String(totalFee)
 
+      // 转换为虚拟支付参数（wx.requestVirtualPayment 所需格式）
+      const virtualParams = {
+        offerId: VIRTUAL_OFFER_ID,
+        buyQuantity: 1,
+        currencyType: 'CNY',
+        env: 0,
+        zoneId: '1',
+        signature: jsapiParams.paySign,
+        paySig: jsapiParams.paySign,
+        signType: 'MD5',
+        total_fee: String(totalFee),
+      }
+
       return {
         success: true,
         data: {
           orderId,
           prepayId: result.prepay_id,
-          jsapiParams,
+          jsapiParams,      // 保留兼容
+          virtualParams,    // 新虚拟支付参数
         },
       }
     } else {

@@ -45,24 +45,40 @@ export async function memberRoutes(fastify: FastifyInstance) {
           mock: true,
           orderId: mockOrderId,
           data: {
+            mock: true,
             prepayId: 'mock_' + Date.now(),
-            timeStamp: String(Math.floor(Date.now()/1000)),
-            nonceStr: Math.random().toString(36).slice(2),
-            package: 'prepay_id=mock_' + Date.now(),
+            offerId: 'wxfd20b5775b2f6046',
+            buyQuantity: 1,
+            currencyType: 'CNY',
+            env: 0,
+            zoneId: '1',
+            signature: 'MOCK_SIGN',
+            paySig: 'MOCK_SIGN',
             signType: 'MD5',
-            paySign: 'MOCK_SIGN',
             total_fee: String(finalFee),
-            totalFee: String(finalFee)
           }
         }
       }
 
+      // 真实支付 → 返回虚拟支付格式
+      const vp = result.data.virtualParams || {}
       return {
         success: true,
+        mock: false,
         orderId: result.data.orderId,
         total_fee: String(finalFee),
-        totalFee: String(finalFee),
-        data: result.data.jsapiParams || result.data,
+        data: {
+          prepayId: result.data.prepayId,
+          offerId: vp.offerId || 'wxfd20b5775b2f6046',
+          buyQuantity: vp.buyQuantity || 1,
+          currencyType: vp.currencyType || 'CNY',
+          env: vp.env || 0,
+          zoneId: vp.zoneId || '1',
+          signature: vp.signature || '',
+          paySig: vp.paySig || '',
+          signType: vp.signType || 'MD5',
+          totalFee: vp.total_fee || String(finalFee),
+        },
       }
     } catch (e) {
       // 微信API不通时返回mock
@@ -72,14 +88,17 @@ export async function memberRoutes(fastify: FastifyInstance) {
         mock: true,
         orderId: mockOrderId,
         data: {
+          mock: true,
           prepayId: 'mock_' + Date.now(),
-          timeStamp: String(Math.floor(Date.now()/1000)),
-          nonceStr: Math.random().toString(36).slice(2),
-          package: 'prepay_id=mock_' + Date.now(),
+          offerId: 'wxfd20b5775b2f6046',
+          buyQuantity: 1,
+          currencyType: 'CNY',
+          env: 0,
+          zoneId: '1',
+          signature: 'MOCK_SIGN',
+          paySig: 'MOCK_SIGN',
           signType: 'MD5',
-          paySign: 'MOCK_SIGN',
           total_fee: String(finalFee),
-          totalFee: String(finalFee)
         }
       }
     }

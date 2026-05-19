@@ -50,20 +50,23 @@ export async function payRoutes(fastify: FastifyInstance) {
       })
 
       if (result.success && result.data) {
-        // 扁平化返回，直接对应 wx.requestPayment 所需字段
-        const jsapi = result.data.jsapiParams
+        // 返回虚拟支付参数（wx.requestVirtualPayment 所需格式）
+        const vp = result.data.virtualParams
         return reply.send({
           success: true,
           data: {
             mock: false,
             orderId: result.data.orderId,
             prepayId: result.data.prepayId,
-            // wx.requestPayment 直接使用的字段
-            timeStamp: jsapi.timeStamp,
-            nonceStr: jsapi.nonceStr,
-            package: jsapi.package,
-            signType: jsapi.signType,
-            paySign: jsapi.paySign,
+            offerId: vp.offerId,
+            buyQuantity: vp.buyQuantity,
+            currencyType: vp.currencyType,
+            env: vp.env,
+            zoneId: vp.zoneId,
+            signature: vp.signature,
+            paySig: vp.paySig,
+            signType: vp.signType,
+            totalFee: vp.total_fee,
           }
         })
       } else {

@@ -85,10 +85,24 @@ export async function mallRoutes(fastify) {
         return reply.status(500).send({ success: false, error: payResult.error })
       }
 
+      // 返回虚拟支付参数（扁平化）
+      const vp = payResult.data?.virtualParams || {}
       return {
         success: true,
         orderId,
-        jsapiParams: payResult.data,
+        jsapiParams: {
+          mock: false,
+          orderId: payResult.data?.orderId || orderId,
+          prepayId: payResult.data?.prepayId || '',
+          offerId: vp.offerId || 'wxfd20b5775b2f6046',
+          buyQuantity: vp.buyQuantity || 1,
+          currencyType: vp.currencyType || 'CNY',
+          env: vp.env || 0,
+          zoneId: vp.zoneId || '1',
+          signature: vp.signature || '',
+          paySig: vp.paySig || '',
+          signType: vp.signType || 'MD5',
+        },
       }
     } catch (err) {
       console.error('商城下单失败:', err)
