@@ -113,6 +113,17 @@ try {
     decorateReply: false,
   })
   console.log('[Static] 证据文件静态服务已注册: /app/uploads/evidence')
+
+  // 管理后台静态页面
+  const ADMIN_DIR = process.env.NODE_ENV === 'production'
+    ? '/app/admin'
+    : path.join(PROJECT_ROOT, 'admin')
+  await app.register(staticFiles, {
+    root: ADMIN_DIR,
+    prefix: '/admin',
+    decorateReply: false,
+  })
+  console.log('[Static] 管理后台静态文件已注册:', ADMIN_DIR, '→ /admin')
 } catch (e) {
   console.warn('[Static] PDF静态文件注册失败，服务继续运行:', String(e))
 }

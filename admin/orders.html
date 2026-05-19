@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>订单管理 · 启信通管理后台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a2e}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:linear-gradient(180deg,#1a1a2e,#16213e);color:#fff;padding:24px 0;z-index:100}
+.sidebar .logo{padding:0 24px 32px;font-size:22px;font-weight:700;letter-spacing:2px}
+.sidebar .logo span{color:#e65c3c}
+.sidebar nav a{display:block;padding:14px 24px;color:rgba(255,255,255,0.65);text-decoration:none;font-size:15px}
+.sidebar nav a:hover,.sidebar nav a.active{color:#fff;background:rgba(255,255,255,0.08);border-left:3px solid #e65c3c}
+.main{margin-left:220px;padding:32px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.header h1{font-size:24px}
+.table{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+.tr{display:grid;grid-template-columns:1.5fr 1.5fr 1fr 1fr 1fr;padding:16px 20px;border-bottom:1px solid #f0f0f0;align-items:center;font-size:14px}
+.tr.head{background:#fafafa;font-weight:600;color:#666;font-size:13px}
+.tr:last-child{border-bottom:none}
+.tr:hover{background:#fafafa}
+.badge{display:inline-block;padding:2px 12px;border-radius:6px;font-size:12px;font-weight:500}
+.badge.pending{background:#fff8e1;color:#f59e0b}
+.badge.paid,.badge.success{background:#e8f5e9;color:#2e7d32}
+.badge.refund{background:#fce4ec;color:#c62828}
+.badge.failed{background:#fce4ec;color:#999}
+.loading{text-align:center;padding:60px;color:#999}
+.empty{text-align:center;padding:60px;color:#ccc}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;display:none}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">启信<span>通</span> · 管理</div>
+  <nav>
+    <a href="index.html">📊 仪表盘</a>
+    <a href="users.html">👥 用户管理</a>
+    <a href="orders.html" class="active">📋 订单管理</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="header"><h1>订单管理</h1></div>
+
+  <div id="loading" class="loading">加载中…</div>
+
+  <div id="content" style="display:none">
+    <div class="table">
+      <div class="tr head">
+        <span>订单号</span><span>商品/套餐</span><span>金额</span><span>状态</span><span>时间</span>
+      </div>
+      <div id="orderList"></div>
+    </div>
+    <div id="empty" class="empty" style="display:none">暂无订单</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API='/api/admin';const TK='qxt_admin_token';
+function t(){return localStorage.getItem(TK)}
+if(!t()){location='login.html'}
+
+async function api(p,m,b){
+  var tk=t();if(!tk){location='login.html';return}
+  var r=await fetch(p.startsWith('/')?p:API+p,{method:m||'GET',headers:{'Content-Type':'application/json','x-admin-token':tk},body:b?JSON.stringify(b):null});
+  if(r.status===401){localStorage.removeItem(TK);location='login.html';return}
+  return r.json()
+}
+
+function toast(m){var e=document.getElementById('toast');e.textContent=m;e.style.display='block';setTimeout(function(){e.style.display='none'},2500)}
+
+(async function(){
+  document.getElementById('loading').style.display='block';
+  document.getElementById('content').style.display='none';
+  var r=await api('/orders/all?page=1&pageSize=100');
+  document.getElementById('loading').style.display='none';
+  document.getElementById('content').style.display='block';
+  var list=(r&&r.data&&r.data.list)||(r&&r.list)||[];
+  if(!Array.isArray(list))list=[];
+  if(list.length===0){document.getElementById('empty').style.display='block';return}
+  document.getElementById('empty').style.display='none';
+  var sm={'pending':'待支付','success':'已支付','paid':'已支付','refund':'已退款','failed':'失败'};
+  document.getElementById('orderList').innerHTML=list.map(function(o){
+    var s=o.payStatus||o.status||'pending';
+    var amt=o.amount?(o.amount/100).toFixed(0):'0';
+    return'<div class="tr">'+
+      '<span style="font-family:monospace;font-size:13px;color:#666">#'+(o.orderId||'')+'</span>'+
+      '<span>'+(o.planName||o.goodsName||'订单')+'</span>'+
+      '<span style="font-weight:600;color:#e65c3c">¥'+amt+'</span>'+
+      '<span><span class="badge '+s+'">'+(sm[s]||s)+'</span></span>'+
+      '<span style="font-size:12px;color:#999">'+(o.createdAt||o.paidAt||'')+'</span>'+
+      '</div>'
+  }).join('')
+})()
+</script>
+</body>
+</html>

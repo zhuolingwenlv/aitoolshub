@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>启信通 · 管理后台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:linear-gradient(180deg,#1a1a2e,#16213e);color:#fff;padding:24px 0;z-index:100}
+.sidebar .logo{padding:0 24px 32px;font-size:22px;font-weight:700;letter-spacing:2px}
+.sidebar .logo span{color:#e65c3c}
+.sidebar nav a{display:block;padding:14px 24px;color:rgba(255,255,255,0.65);text-decoration:none;font-size:15px;transition:.2s}
+.sidebar nav a:hover,.sidebar nav a.active{color:#fff;background:rgba(255,255,255,0.08);border-left:3px solid #e65c3c}
+.main{margin-left:220px;padding:32px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.header h1{font-size:24px;font-weight:700}
+.header .user{display:flex;align-items:center;gap:12px;font-size:14px;color:#666}
+.header .logout{color:#e65c3c;cursor:pointer;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px}
+.stat-card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+.stat-card .val{font-size:32px;font-weight:700;color:#1a1a2e}
+.stat-card .lbl{font-size:13px;color:#999;margin-top:4px}
+.stat-card.accent{background:linear-gradient(135deg,#e65c3c,#d65486)}
+.stat-card.accent .val,.stat-card.accent .lbl{color:#fff}
+.menus{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.menu-card{background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,0.04);cursor:pointer;transition:.2s}
+.menu-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,0.08)}
+.menu-card .icon{font-size:36px;margin-bottom:12px}
+.menu-card .title{font-size:18px;font-weight:600;margin-bottom:6px}
+.menu-card .desc{font-size:13px;color:#999}
+.loading{text-align:center;padding:60px;color:#999}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;display:none}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">启信<span>通</span> · 管理</div>
+  <nav>
+    <a href="index.html" class="active">📊 仪表盘</a>
+    <a href="users.html">👥 用户管理</a>
+    <a href="orders.html">📋 订单管理</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="header">
+    <h1>仪表盘</h1>
+    <div class="user">
+      <span id="adminInfo"></span>
+      <span class="logout" onclick="logout()">退出</span>
+    </div>
+  </div>
+
+  <div id="loading" class="loading">加载中…</div>
+
+  <div id="content" style="display:none">
+    <div class="stats" id="statsGrid"></div>
+    <div class="menus">
+      <div class="menu-card" onclick="location='users.html'">
+        <div class="icon">👥</div>
+        <div class="title">用户管理</div>
+        <div class="desc">查看/搜索用户 · 修改会员等级 · 赠送次数</div>
+      </div>
+      <div class="menu-card" onclick="location='orders.html'">
+        <div class="icon">📋</div>
+        <div class="title">订单管理</div>
+        <div class="desc">查看所有订单 · 退款处理 · 收入统计</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/admin';
+const TOKEN_KEY = 'qxt_admin_token';
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+async function api(path, method, body) {
+  const token = getToken();
+  if (!token) { location = 'login.html'; return; }
+  const opts = {
+    method: method || 'GET',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': token }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path.startsWith('/') ? path : API + path, opts);
+  if (res.status === 401) { localStorage.removeItem(TOKEN_KEY); location = 'login.html'; return; }
+  return res.json();
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2500);
+}
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  location = 'login.html';
+}
+
+// 检查登录
+if (!getToken()) { location = 'login.html'; }
+
+// 加载仪表盘
+(async () => {
+  try {
+    const resp = await api('/dashboard/stats');
+    const s = resp.data || resp || {};
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+    const stats = [
+      { val: s.totalUsers || s.userCount || 0, lbl: '总用户', accent: false },
+      { val: s.todayNewUsers || s.todayUsers || 0, lbl: '今日新增', accent: true },
+      { val: s.memberCount || s.vipUsers || 0, lbl: '付费会员', accent: false },
+      { val: '¥' + (s.todayRevenue || 0), lbl: '今日收入', accent: true },
+      { val: '¥' + (s.totalRevenue || s.revenue || 0), lbl: '累计收入', accent: false },
+      { val: s.reportCount || 0, lbl: '报告数', accent: false },
+    ];
+
+    document.getElementById('statsGrid').innerHTML = stats.map(s =>
+      '<div class="stat-card' + (s.accent ? ' accent' : '') + '">' +
+      '<div class="val">' + s.val + '</div>' +
+      '<div class="lbl">' + s.lbl + '</div></div>'
+    ).join('');
+
+    document.getElementById('adminInfo').textContent = '管理员';
+  } catch(e) {
+    document.getElementById('loading').textContent = '加载失败: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>

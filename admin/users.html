@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户管理 · 启信通管理后台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a2e}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:linear-gradient(180deg,#1a1a2e,#16213e);color:#fff;padding:24px 0;z-index:100}
+.sidebar .logo{padding:0 24px 32px;font-size:22px;font-weight:700;letter-spacing:2px}
+.sidebar .logo span{color:#e65c3c}
+.sidebar nav a{display:block;padding:14px 24px;color:rgba(255,255,255,0.65);text-decoration:none;font-size:15px}
+.sidebar nav a:hover,.sidebar nav a.active{color:#fff;background:rgba(255,255,255,0.08);border-left:3px solid #e65c3c}
+.main{margin-left:220px;padding:32px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.header h1{font-size:24px}
+.search{display:flex;gap:12px;margin-bottom:24px}
+.search input{flex:1;height:44px;border:1px solid #e0e0e0;border-radius:8px;padding:0 16px;font-size:14px;outline:none}
+.search input:focus{border-color:#e65c3c}
+.search button{height:44px;padding:0 24px;background:#1a1a2e;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}
+.table{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+.table-row{display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr 1fr;padding:16px 20px;border-bottom:1px solid #f0f0f0;align-items:center;font-size:14px}
+.table-row.head{background:#fafafa;font-weight:600;color:#666;font-size:13px}
+.table-row:last-child{border-bottom:none}
+.table-row:hover{background:#fafafa}
+.tag{display:inline-block;padding:2px 12px;border-radius:6px;font-size:12px;font-weight:500}
+.tag-0{background:#f0f0f0;color:#999}
+.tag-1{background:#fff0e6;color:#e65c3c}
+.tag-2{background:#fff8e1;color:#f59e0b}
+.tag-3{background:#1a1a2e;color:#f59e0b}
+.actions{display:flex;gap:8px}
+.actions button{padding:4px 12px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;font-size:12px;cursor:pointer}
+.actions button:hover{background:#f0f0f0}
+.actions button.danger{color:#e65c3c;border-color:#fce4ec}
+.actions button.danger:hover{background:#fef0f0}
+.empty{text-align:center;padding:60px;color:#ccc}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;z-index:200}
+.modal{background:#fff;border-radius:16px;padding:32px;width:440px;max-width:90vw}
+.modal h3{font-size:20px;margin-bottom:20px}
+.modal .field{margin-bottom:16px}
+.modal .field label{display:block;font-size:13px;color:#666;margin-bottom:6px}
+.modal .field select,.modal .field input{width:100%;height:44px;border:1px solid #e0e0e0;border-radius:8px;padding:0 12px;font-size:14px}
+.modal .btns{display:flex;gap:12px;margin-top:24px}
+.modal .btns button{flex:1;height:44px;border:none;border-radius:8px;font-size:14px;cursor:pointer}
+.modal .btns .save{background:linear-gradient(135deg,#e65c3c,#d65486);color:#fff}
+.modal .btns .cancel{background:#f0f0f0;color:#666}
+.loading{text-align:center;padding:60px;color:#999}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;display:none}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">启信<span>通</span> · 管理</div>
+  <nav>
+    <a href="index.html">📊 仪表盘</a>
+    <a href="users.html" class="active">👥 用户管理</a>
+    <a href="orders.html">📋 订单管理</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="header"><h1>用户管理</h1></div>
+  <div class="search">
+    <input id="searchInput" type="text" placeholder="搜索手机号或昵称…" onkeydown="if(event.key==='Enter')search()">
+    <button onclick="search()">搜索</button>
+  </div>
+
+  <div id="loading" class="loading">加载中…</div>
+
+  <div id="content" style="display:none">
+    <div class="table">
+      <div class="table-row head">
+        <span>昵称</span><span>手机号</span><span>会员</span><span>活跃</span><span>操作</span>
+      </div>
+      <div id="userList"></div>
+    </div>
+    <div id="empty" class="empty" style="display:none">暂无用户</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">编辑会员</h3>
+    <div class="field">
+      <label>会员等级</label>
+      <select id="editLevel">
+        <option value="0">普通用户</option>
+        <option value="1">季VIP</option>
+        <option value="2">半年SVIP</option>
+        <option value="3">黑金年卡</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>赠送次数</label>
+      <input id="editGift" type="number" placeholder="赠送梳理次数">
+    </div>
+    <input type="hidden" id="editUserId">
+    <div class="btns">
+      <button class="cancel" onclick="closeModal()">取消</button>
+      <button class="save" onclick="saveUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/admin';
+const TK = 'qxt_admin_token';
+
+function t(){return localStorage.getItem(TK)}
+if(!t()){location='login.html'}
+
+async function api(p,m,b){
+  const tk=t();if(!tk){location='login.html';return}
+  const r=await fetch(p.startsWith('/')?p:API+p,{method:m||'GET',headers:{'Content-Type':'application/json','x-admin-token':tk},body:b?JSON.stringify(b):null});
+  if(r.status===401){localStorage.removeItem(TK);location='login.html';return}
+  return r.json()
+}
+
+function toast(m){var e=document.getElementById('toast');e.textContent=m;e.style.display='block';setTimeout(function(){e.style.display='none'},2500)}
+
+async function search(kw){
+  k=kw||document.getElementById('searchInput').value;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('content').style.display='none';
+  var q='?page=1&pageSize=50';
+  if(k)q+='&phone='+k+'&nickname='+k;
+  var r=await api('/users'+q);
+  document.getElementById('loading').style.display='none';
+  document.getElementById('content').style.display='block';
+  var list=(r&&r.data&&r.data.list)||(r&&r.list)||[];
+  if(!Array.isArray(list))list=[];
+  if(list.length===0){
+    document.getElementById('empty').style.display='block';
+    document.getElementById('userList').innerHTML='';
+    return
+  }
+  document.getElementById('empty').style.display='none';
+  var ln={'0':'普通','1':'季VIP','2':'SVIP','3':'黑金'};
+  document.getElementById('userList').innerHTML=list.map(function(u){
+    var lv=u.memberLevel||u.level||'0';
+    return'<div class="table-row">'+
+      '<span>'+((u.nickname||'用户').slice(0,10))+'</span>'+
+      '<span style="color:#999">'+((u.phone||'').slice(0,11))+'</span>'+
+      '<span><span class="tag tag-'+lv+'">'+(ln[lv]||lv)+'</span></span>'+
+      '<span style="color:#999">'+(u.lastActive||u.createdAt||'')+'</span>'+
+      '<span class="actions">'+
+        '<button onclick="editUser(\''+(u.id||'')+'\',\''+lv+'\')">编辑</button>'+
+      '</span></div>'
+  }).join('')
+}
+
+function editUser(id,lv){
+  document.getElementById('editUserId').value=id;
+  document.getElementById('editLevel').value=lv;
+  document.getElementById('editGift').value='';
+  document.getElementById('modal').style.display='flex'
+}
+function closeModal(){document.getElementById('modal').style.display='none'}
+async function saveUser(){
+  var id=document.getElementById('editUserId').value;
+  var lv=document.getElementById('editLevel').value;
+  var gift=parseInt(document.getElementById('editGift').value)||0;
+  try{
+    await api('/users/'+id+'/member','PUT',{memberLevel:parseInt(lv),reason:'管理员手动修改'});
+    if(gift>0)await api('/users/'+id+'/gift','POST',{count:gift,reason:'管理员赠送'});
+    closeModal();toast('已更新');search()
+  }catch(e){toast('更新失败')}
+}
+
+search()
+</script>
+</body>
+</html>
