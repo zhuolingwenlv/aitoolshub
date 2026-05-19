@@ -163,7 +163,7 @@ function buildPdfContent(doc, report, options = {}) {
   doc.fillColor(DARK);
   doc.fontSize(10);
   const m1Rows = [
-    ['纠纷类型', m1.type || '-'],
+    ['纠纷类型', m1.name || m1.type || '-'],
     ['涉及金额', m1.amount || '-'],
     ['当前状态', m1.status || '-'],
   ];
@@ -225,8 +225,10 @@ function buildPdfContent(doc, report, options = {}) {
     doc.fillColor(DARK).fontSize(10).text('已有材料：', 40, y, { lineBreak: false });
     y += 18;
     m2.have.forEach(item => {
+      // 兼容字符串数组和对象数组
+      const itemName = typeof item === 'string' ? item : (item.name || '');
       doc.fillColor('#333333').fontSize(9);
-      doc.text(`✅ ${item.name}`, 50, y, { lineBreak: false });
+      doc.text(`✅ ${itemName}`, 50, y, { lineBreak: false });
       y += 14;
       if (item.tip) {
         doc.fillColor(GRAY).fontSize(8);
@@ -562,10 +564,18 @@ function _generateInBackground(taskId, report, filePath) {
     const stream = fs.createWriteStream(filePath);
 
     stream.on('finish', () => {
+      // 读取PDF为base64，前端免downloadFile白名单
+      let pdfBase64 = '';
+      try {
+        pdfBase64 = fs.readFileSync(filePath).toString('base64');
+      } catch(e) {
+        console.error('[PDF] Base64读取失败:', e.message);
+      }
       taskQueue.set(taskId, {
         status: 'completed',
         reportId: report.reportId,
         filePath,
+        pdfBase64,
         createdAt: Date.now(),
       });
       cachePdf(report.reportId, filePath);
@@ -637,10 +647,13 @@ export function generatePdfTask(report) {
   const cached = getCachedPdf(reportId);
   if (cached) {
     const taskId = `cached-${reportId}-${Date.now()}`;
+    let pdfBase64 = '';
+    try { pdfBase64 = fs.readFileSync(cached).toString('base64'); } catch(e) {}
     taskQueue.set(taskId, {
       status: 'completed',
       reportId,
       filePath: cached,
+      pdfBase64,
       createdAt: Date.now(),
     });
     return { taskId, status: 'completed', filePath: cached };
@@ -697,6 +710,7 @@ export function getPdfTaskStatus(taskId) {
     status: task.status,
     filePath: task.filePath || null,
     downloadUrl,
+    pdfBase64: task.pdfBase64 || null,
     error: task.error || null,
     reportId: task.reportId,
   };
