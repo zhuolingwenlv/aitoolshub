@@ -163,4 +163,48 @@ export async function evidenceRoutes(fastify) {
     }
     return reply.sendFile(path.basename(filePath), UPLOAD_DIR)
   })
+
+  // base64上传（绕过uploadFile域名校验）
+  fastify.post('/upload-base64', async (request, reply) => {
+    try {
+      const body = request.body || {}
+      const { file, typeId, typeLabel, scene } = body
+      if (!file) {
+        return reply.status(400).send({ success: false, error: '文件数据为空' })
+      }
+      // 解码base64
+      const matches = file.match(/^data:image\/(\w+);base64,(.+)$/)
+      let ext = 'jpg'
+      let base64Data = file
+      if (matches) {
+        ext = matches[1] === 'png' ? 'png' : 'jpg'
+        base64Data = matches[2]
+      }
+      const fileBuffer = Buffer.from(base64Data, 'base64')
+      if (fileBuffer.length > 25 * 1024 * 1024) {
+        return reply.status(400).send({ success: false, error: '文件不能超过25MB' })
+      }
+
+      const hash = crypto.createHash('md5').update(fileBuffer).digest('hex').slice(0, 12)
+      const fileName = Date.now() + '_' + hash + '.' + ext
+      const filePath = path.join(UPLOAD_DIR, fileName)
+      fs.writeFileSync(filePath, fileBuffer)
+
+      const url = '/uploads/evidence/' + fileName
+      const fileId = 'ev_' + Date.now() + '_' + hash
+
+      return {
+        success: true, url: url, fileId: fileId,
+        typeId: typeId || '', typeLabel: typeLabel || '',
+        result: {
+          url: url, quality: '✅ 已上传', level: '待分析',
+          note: '文件已成功上传至服务器',
+          keyTerms: [typeLabel || '证据'],
+        },
+      }
+    } catch (err) {
+      console.error('[Evidence] base64上传失败:', err)
+      return reply.status(500).send({ success: false, error: '上传失败' })
+    }
+  })
 }
