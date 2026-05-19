@@ -166,7 +166,7 @@ export async function userRoutes(fastify: FastifyInstance) {
         const https = await import('node:https')
         const appid = process.env.WECHAT_APPID || 'wxfd20b5775b2f6046'
         const secret = process.env.WECHAT_SECRET || '7792ee0eb5f1c579ea7c390e594ee8df'
-        const wxUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${appid}&secret=${secret}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`
+const wxUrl = 'https://api.weixin.qq.com/sns/jscode2session?appid=' + appid + '&secret=' + secret + '&js_code=' + encodeURIComponent(code) + '&grant_type=authorization_code';
         const wxData = await new Promise((resolve, reject) => {
           https.get(wxUrl, (res) => {
             let body = ''
